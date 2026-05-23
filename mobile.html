@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#070f1c">
+    <title>รถเจาะไทย — Mobile</title>
+    <script>
+        // Redirect to desktop version if user has chosen desktop mode
+        (function () {
+            if (localStorage.getItem('viewMode') === 'desktop') {
+                window.location.replace('index.html');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="mobile.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Top Nav -->
+    <header class="m-topnav">
+        <div class="m-brand">
+            <div class="m-brand-icon"><i class="fas fa-truck-monster"></i></div>
+            <div class="m-brand-text">
+                <div class="m-brand-title">รถเจาะไทย</div>
+                <div class="m-brand-sub">Payment Log · 2026</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <a href="https://docs.google.com/spreadsheets/d/1W6akdetULBgPu0Wx5jn1HKmCtlM-wHE3towbFygGQvo/edit?usp=sharing" target="_blank" class="m-icon-btn" style="color: #10b981; text-decoration: none;" aria-label="Google Sheet">
+                <i class="fas fa-file-excel"></i>
+            </a>
+            <button class="m-icon-btn m-btn-pdf" id="btnDailyPDF" aria-label="Daily PDF Report">
+                <i class="fas fa-file-pdf"></i>
+            </button>
+            <button class="m-icon-btn" id="btnRefresh" aria-label="รีเฟรช">
+                <i class="fas fa-rotate-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Status -->
+    <div class="m-status" id="lastUpdated">
+        <i class="fas fa-circle"></i>
+        <span>กำลังโหลดข้อมูล...</span>
+    </div>
+
+    <!-- KPI Compact Row -->
+    <section class="m-kpi-row">
+        <div class="m-kpi m-kpi-blue">
+            <div class="m-kpi-icon"><i class="fas fa-baht-sign"></i></div>
+            <div class="m-kpi-info">
+                <div class="m-kpi-label">ยอดรวม</div>
+                <div class="m-kpi-value" id="total-amount">0</div>
+            </div>
+        </div>
+        <div class="m-kpi m-kpi-purple">
+            <div class="m-kpi-icon"><i class="fas fa-file-invoice"></i></div>
+            <div class="m-kpi-info">
+                <div class="m-kpi-label">รายการ</div>
+                <div class="m-kpi-value" id="total-count">0</div>
+            </div>
+        </div>
+        <div class="m-kpi m-kpi-teal">
+            <div class="m-kpi-icon"><i class="fas fa-car-side"></i></div>
+            <div class="m-kpi-info">
+                <div class="m-kpi-label">รถ</div>
+                <div class="m-kpi-value" id="vehicle-count">0</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search + Filter -->
+    <div class="m-search-bar">
+        <div class="m-search">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" placeholder="ค้นหา ทะเบียน, ลิสซิ่ง...">
+        </div>
+        <button class="m-filter-btn" id="btnFilter" aria-label="ตัวกรอง">
+            <i class="fas fa-sliders"></i>
+            <span class="m-filter-dot" id="filterDot"></span>
+        </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="m-tabs">
+        <button class="m-tab active" data-tab="list">
+            <i class="fas fa-rectangle-list"></i>
+            <span>รายการ</span>
+            <span class="m-tab-count" id="cardCount">0</span>
+        </button>
+        <button class="m-tab" data-tab="overview">
+            <i class="fas fa-chart-pie"></i>
+            <span>ภาพรวม</span>
+        </button>
+    </div>
+
+    <!-- Tab Contents -->
+    <main class="m-content">
+        <!-- List Tab -->
+        <section class="m-tab-pane active" id="tab-list">
+            <div class="m-cards" id="cardsContainer">
+                <div class="m-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>กำลังโหลด...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Overview Tab -->
+        <section class="m-tab-pane" id="tab-overview">
+            <div class="m-chart-card">
+                <h3><i class="fas fa-chart-bar"></i> ยอดชำระรายเดือน</h3>
+                <div class="m-hint"><i class="fas fa-arrows-left-right"></i> เลื่อนไปทางซ้าย-ขวาเพื่อดูเดือนอื่น</div>
+                <div class="m-chart-scroll">
+                    <div class="m-chart-inner" id="trendChartInner">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="m-chart-card">
+                <h3><i class="fas fa-chart-pie"></i> สัดส่วนตามลิสซิ่ง</h3>
+                <div class="m-chart-wrapper">
+                    <canvas id="leasingDonutChart"></canvas>
+                </div>
+                <div class="m-donut-legend" id="donutLegend"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Switch View Footer -->
+    <footer class="m-footer">
+        <button class="m-switch-btn" id="btnSwitchDesktop">
+            <i class="fas fa-desktop"></i> ดูเวอร์ชั่นเดสก์ท็อป
+        </button>
+    </footer>
+
+    <!-- Filter Drawer -->
+    <div class="m-backdrop" id="filterBackdrop"></div>
+    <div class="m-drawer" id="filterDrawer">
+        <div class="m-drawer-handle"></div>
+        <div class="m-drawer-header">
+            <h3><i class="fas fa-sliders"></i> กรองข้อมูล</h3>
+            <button class="m-drawer-close" id="closeFilter"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="m-drawer-body">
+            <div class="m-field">
+                <label>ปี</label>
+                <select id="filter-year"><option value="">ทั้งหมด</option></select>
+            </div>
+            <div class="m-field">
+                <label>เดือน</label>
+                <select id="filter-month"><option value="">ทั้งหมด</option></select>
+            </div>
+            <div class="m-field">
+                <label>วันที่</label>
+                <select id="filter-date"><option value="">ทั้งหมด</option></select>
+            </div>
+            <div class="m-field">
+                <label>ชื่อลิสซิ่ง</label>
+                <select id="filter-leasing"><option value="">ทั้งหมด</option></select>
+            </div>
+            <div class="m-field">
+                <label>สถานะ</label>
+                <select id="filter-status"><option value="">ทั้งหมด</option></select>
+            </div>
+        </div>
+        <div class="m-drawer-footer">
+            <button class="m-btn-reset" id="reset-filters">
+                <i class="fas fa-arrow-rotate-left"></i> รีเซ็ต
+            </button>
+            <button class="m-btn-apply" id="applyFilters">
+                <i class="fas fa-check"></i> ดูผลลัพธ์
+            </button>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="m-modal" id="detailModal">
+        <div class="m-modal-content">
+            <div class="m-modal-header">
+                <div class="m-modal-title"><i class="fas fa-receipt"></i> รายละเอียด</div>
+                <button class="m-modal-close" id="closeModal"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="m-modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- PDF Report Modal (Mobile) -->
+    <div id="pdfModal" class="m-pdf-overlay">
+        <div class="m-pdf-sheet">
+            <div class="m-pdf-header">
+                <div class="m-pdf-title">
+                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i>
+                    รายงานประจำวัน
+                </div>
+                <button class="m-modal-close" id="closePdfModal"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="m-pdf-controls">
+                <div class="m-cal-topbar">
+                    <button class="m-cal-nav" id="calPrev"><i class="fas fa-chevron-left"></i></button>
+                    <select class="m-cal-sel" id="calMonthSel"></select>
+                    <select class="m-cal-sel" id="calYearSel"></select>
+                    <button class="m-cal-nav" id="calNext"><i class="fas fa-chevron-right"></i></button>
+                    <button class="m-cal-selall" id="calSelAll">เลือกทั้งหมด</button>
+                    <button class="m-cal-clear" id="calClear">ล้าง</button>
+                </div>
+                <div class="m-cal-weekdays">
+                    <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+                </div>
+                <div class="m-cal-grid" id="pdfCalGrid"></div>
+                <div class="m-cal-selected-bar" id="calSelectedBar">ยังไม่ได้เลือกวันที่</div>
+                <button class="m-btn-generate-pdf" id="btnGeneratePdf">
+                    <i class="fas fa-wand-magic-sparkles"></i> สร้าง PDF รายงาน
+                </button>
+            </div>
+            <div class="m-pdf-preview-area" id="pdfPreviewArea">
+                <div class="m-pdf-toolbar">
+                    <span class="m-pdf-info" id="pdfPreviewInfo"></span>
+                    <button class="m-btn-download-pdf" id="btnDownloadPdf">
+                        <i class="fas fa-download"></i> ดาวน์โหลด PDF
+                    </button>
+                </div>
+                <div class="m-pdf-scroll">
+                    <div id="pdfReportContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="mobile.js"></script>
+</body>
+
+</html>

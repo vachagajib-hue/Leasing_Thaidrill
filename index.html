@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบสรุปการชำระเงิน | รถเจาะไทย 2026</title>
+    <script>
+        // Auto-redirect to mobile version if on mobile device (unless user prefers desktop)
+        (function () {
+            var prefer = localStorage.getItem('viewMode');
+            var isMobile = /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini/i.test(navigator.userAgent)
+                || window.innerWidth <= 768;
+            if (isMobile && prefer !== 'desktop') {
+                window.location.replace('mobile.html');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Top Navigation Bar -->
+    <nav class="topnav">
+        <div class="topnav-brand">
+            <div class="brand-icon">
+                <i class="fas fa-truck-monster"></i>
+            </div>
+            <div class="brand-text">
+                <span class="brand-title">ฐานข้อมูลลิสซิ่ง — รถเจาะไทย</span>
+                <span class="brand-sub">Payment Log Dashboard &nbsp;·&nbsp; 2026</span>
+            </div>
+        </div>
+        <div class="topnav-actions">
+            <div class="last-updated" id="lastUpdated">
+                <i class="fas fa-circle"></i>
+                <span>กำลังโหลดข้อมูล...</span>
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/1W6akdetULBgPu0Wx5jn1HKmCtlM-wHE3towbFygGQvo/edit?usp=sharing" target="_blank" class="btn-primary" style="display: flex; align-items: center; gap: 8px; background-color: #10b981; text-decoration: none; color: white;">
+                <i class="fas fa-file-excel"></i>
+                <span>Google Sheet</span>
+            </a>
+            <button class="btn-pdf-nav" id="btnDailyPDF">
+                <i class="fas fa-file-pdf"></i>
+                <span>Daily PDF Report</span>
+            </button>
+            <button class="btn-primary" id="btnRefresh">
+                <i class="fas fa-rotate-right"></i>
+                <span>รีเฟรช</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- App Body -->
+    <div class="app-body">
+
+        <!-- Main Dashboard (full width) -->
+        <div class="main-content">
+
+            <!-- KPI Row -->
+            <section class="kpi-row">
+                <div class="kpi-card kpi-blue">
+                    <div class="kpi-icon"><i class="fas fa-baht-sign"></i></div>
+                    <div class="kpi-data">
+                        <div class="kpi-label">ยอดค่างวดรวมทั้งหมด</div>
+                        <div class="kpi-value" id="total-amount">0</div>
+                        <div class="kpi-note"><i class="fas fa-database"></i> อัปเดตจาก Google Sheets</div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-green">
+                    <div class="kpi-icon"><i class="fas fa-circle-check"></i></div>
+                    <div class="kpi-data">
+                        <div class="kpi-label">ยอดที่ชำระแล้ว</div>
+                        <div class="kpi-value" id="paid-amount">0</div>
+                        <div class="kpi-note kpi-note-success" id="paid-count"><i class="fas fa-list"></i> 0 รายการ</div>
+                        <button class="btn-kpi-detail" id="btnPaidDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-red">
+                    <div class="kpi-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                    <div class="kpi-data">
+                        <div class="kpi-label">ค่างวดเกินกำหนด</div>
+                        <div class="kpi-value" id="overdue-amount">0</div>
+                        <div class="kpi-note kpi-note-danger" id="overdue-count"><i class="fas fa-list"></i> 0 รายการ</div>
+                        <button class="btn-kpi-detail" id="btnOverdueDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-yellow">
+                    <div class="kpi-icon"><i class="fas fa-hourglass-half"></i></div>
+                    <div class="kpi-data">
+                        <div class="kpi-label">ยังไม่ถึงกำหนดชำระ</div>
+                        <div class="kpi-value" id="pending-amount">0</div>
+                        <div class="kpi-note kpi-note-warning" id="pending-count"><i class="fas fa-list"></i> 0 รายการ</div>
+                        <button class="btn-kpi-detail" id="btnPendingDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-teal">
+                    <div class="kpi-icon"><i class="fas fa-calendar-check"></i></div>
+                    <div class="kpi-data">
+                        <div class="kpi-label">ยอดค่างวดเดือนปัจจุบัน</div>
+                        <div class="kpi-value" id="current-month-amount">0</div>
+                        <div class="kpi-note kpi-note-teal" id="current-month-count"><i class="fas fa-list-check"></i> 0 รายการ</div>
+                        <button class="btn-kpi-detail" id="btnCurrentMonthDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filter Section -->
+            <section class="filter-section">
+                <div class="section-header">
+                    <i class="fas fa-filter"></i>
+                    <span>กรองข้อมูล</span>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>ปี</label>
+                        <div class="multi-select" id="filter-year" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label>เดือน</label>
+                        <div class="multi-select" id="filter-month" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label>วันที่</label>
+                        <div class="multi-select" id="filter-date" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label>ชื่อลิสซิ่ง</label>
+                        <div class="multi-select" id="filter-leasing" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label>สถานะ</label>
+                        <div class="multi-select" id="filter-status" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <button class="btn-reset" id="reset-filters">
+                        <i class="fas fa-arrow-rotate-left"></i> รีเซ็ต
+                    </button>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">
+                            <i class="fas fa-chart-bar"></i>
+                            แนวโน้มยอดชำระรายเดือน
+                        </div>
+                    </div>
+                    <div class="chart-filter-row" id="trend-filter-row">
+                        <div class="chart-filter-group">
+                            <label>ปี</label>
+                            <div class="multi-select chart-sel" id="trend-filter-year" data-placeholder="ทุกปี"></div>
+                        </div>
+                        <div class="chart-filter-group">
+                            <label>ลิสซิ่ง</label>
+                            <div class="multi-select chart-sel" id="trend-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
+                        </div>
+                        <div class="chart-filter-group">
+                            <label>สถานะ</label>
+                            <div class="multi-select chart-sel" id="trend-filter-status" data-placeholder="ทุกสถานะ"></div>
+                        </div>
+                        <button class="chart-filter-reset" id="trend-filter-reset" title="รีเซ็ต">
+                            <i class="fas fa-arrow-rotate-left"></i>
+                        </button>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">
+                            <i class="fas fa-chart-line"></i>
+                            ยอดค่างวดตามชื่อรหัส
+                        </div>
+                    </div>
+                    <div class="chart-filter-row" id="step-filter-row">
+                        <div class="chart-filter-group">
+                            <label>ปี</label>
+                            <div class="multi-select chart-sel" id="step-filter-year" data-placeholder="ทุกปี"></div>
+                        </div>
+                        <div class="chart-filter-group">
+                            <label>เดือน</label>
+                            <div class="multi-select chart-sel" id="step-filter-month" data-placeholder="ทุกเดือน"></div>
+                        </div>
+                        <div class="chart-filter-group">
+                            <label>สถานะ</label>
+                            <div class="multi-select chart-sel" id="step-filter-status" data-placeholder="ทุกสถานะ"></div>
+                        </div>
+                        <button class="chart-filter-reset" id="step-filter-reset" title="รีเซ็ต">
+                            <i class="fas fa-arrow-rotate-left"></i>
+                        </button>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="stepLineChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Table Section -->
+            <section class="table-section">
+                <div class="table-section-header">
+                    <div class="table-section-title">
+                        <i class="fas fa-table-list"></i>
+                        รายการชำระเงิน
+                        <span class="card-count-badge" id="cardCount">0 รายการ</span>
+                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
+                    </div>
+                    <div class="table-controls">
+                        <div class="table-search-box">
+                            <i class="fas fa-magnifying-glass"></i>
+                            <input type="text" id="searchInput" placeholder="ค้นหา ทะเบียน, ลิสซิ่ง, สัญญา...">
+                        </div>
+                        <div class="table-filter-inline">
+                            <div class="multi-select table-sel" id="table-filter-year" data-placeholder="ทุกปี"></div>
+                            <div class="multi-select table-sel" id="table-filter-month" data-placeholder="ทุกเดือน"></div>
+                            <div class="multi-select table-sel" id="table-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
+                            <div class="multi-select table-sel" id="table-filter-aircode" data-placeholder="ทุก Air Code"></div>
+                            <div class="multi-select table-sel" id="table-filter-status" data-placeholder="ทุกสถานะ"></div>
+                        </div>
+                        <button class="btn-export-pdf" id="btnExportTablePdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="table-wrapper" id="paymentTableWrapper">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>กำลังโหลดข้อมูล...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Check Return Fee Section -->
+            <section class="table-section">
+                <div class="table-section-header">
+                    <div class="table-section-title">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        ค่าธรรมเนียมเช็คคืน
+                        <span class="card-count-badge" id="checkReturnCount">0 รายการ</span>
+                        <span class="check-return-subtitle" id="checkReturnSubtitle"></span>
+                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
+                    </div>
+                    <div class="table-controls">
+                        <div class="table-search-box">
+                            <i class="fas fa-magnifying-glass"></i>
+                            <input type="text" id="checkReturnSearch" placeholder="ค้นหา รายการ, สัญญา, เลขเช็ค...">
+                        </div>
+                        <div class="table-filter-inline">
+                            <div class="multi-select table-sel" id="cr-filter-year" data-placeholder="ทุกปี"></div>
+                            <div class="multi-select table-sel" id="cr-filter-month" data-placeholder="ทุกเดือน"></div>
+                            <div class="multi-select table-sel" id="cr-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
+                            <div class="multi-select table-sel" id="cr-filter-bank" data-placeholder="ทุกธนาคาร"></div>
+                        </div>
+                        <button class="btn-export-pdf" id="btnExportCheckReturnPdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="table-wrapper" id="checkReturnTableWrapper">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>กำลังโหลดข้อมูล...</span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+    </div>
+
+    <!-- Debug Panel (Hidden by default) -->
+    <div id="debug-panel" style="display:none; margin: 20px; padding: 20px; background: #000; border: 1px solid #f43f5e; border-radius: 10px;">
+        <h3 style="color:#f43f5e; margin-bottom:10px;">ระบบตรวจสอบปัญหา (Debug Info)</h3>
+        <pre id="debug-content" style="font-size:0.7rem; overflow-x:auto; color:#fff;"></pre>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-receipt"></i>
+                    รายละเอียดรายการชำระเงิน
+                </div>
+                <button class="close-modal"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn-close-modal">
+                    <i class="fas fa-xmark"></i> ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Detail Modal -->
+    <div id="statusModal" class="modal">
+        <div class="modal-content status-modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="statusModalTitle">
+                    <i class="fas fa-list"></i> รายละเอียด
+                </div>
+                <button class="close-modal" id="closeStatusModal"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div id="statusModalBody" class="status-modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn-close-modal" id="btnCloseStatusModal">
+                    <i class="fas fa-xmark"></i> ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Report Modal -->
+    <div id="pdfModal" class="modal pdf-modal-overlay">
+        <div class="pdf-modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i>
+                    รายงานการชำระเงินประจำวัน
+                </div>
+                <button class="close-modal" id="closePdfModal"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="pdf-controls">
+                <div class="pdf-cal-wrap">
+                    <div class="pdf-cal-topbar">
+                        <button class="pdf-cal-nav" id="deskCalPrev"><i class="fas fa-chevron-left"></i></button>
+                        <select class="pdf-cal-sel" id="deskCalMonthSel"></select>
+                        <select class="pdf-cal-sel" id="deskCalYearSel"></select>
+                        <button class="pdf-cal-nav" id="deskCalNext"><i class="fas fa-chevron-right"></i></button>
+                        <button class="pdf-cal-selall" id="deskCalSelAll">เลือกทั้งหมด</button>
+                        <button class="pdf-cal-clear" id="deskCalClear">ล้าง</button>
+                    </div>
+                    <div class="pdf-cal-weekdays">
+                        <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+                    </div>
+                    <div class="pdf-cal-grid" id="deskCalGrid"></div>
+                    <div class="pdf-cal-selected-bar" id="deskCalBar">ยังไม่ได้เลือกวันที่</div>
+                </div>
+                <button class="btn-generate-pdf" id="btnGeneratePdf">
+                    <i class="fas fa-wand-magic-sparkles"></i> สร้าง PDF รายงาน
+                </button>
+            </div>
+            <div class="pdf-preview-area" id="pdfPreviewArea">
+                <div class="pdf-preview-toolbar">
+                    <span class="pdf-preview-info" id="pdfPreviewInfo"></span>
+                    <button class="btn-download-pdf" id="btnDownloadPdf">
+                        <i class="fas fa-download"></i> ดาวน์โหลด PDF
+                    </button>
+                </div>
+                <div class="pdf-preview-scroll">
+                    <div id="pdfReportContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
