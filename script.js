@@ -370,7 +370,6 @@ function enableClickToScroll(el) {
 document.addEventListener('DOMContentLoaded', () => {
     // ยิง 2 fetch พร้อมกัน — ไม่บล็อกกัน (ตารางหลัก + ตารางค่าธรรมเนียมเช็คคืน โหลดขนานกัน)
     fetchData();
-    fetchCheckReturnData();
     // เปิดใช้ click-to-scroll สำหรับทุกตาราง (.table-wrapper)
     setTimeout(() => {
         document.querySelectorAll('.table-wrapper').forEach(enableClickToScroll);
@@ -394,11 +393,9 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.addEventListener('click', () => {
             allData = [];
             checkReturnData = [];
-            _checkReturnFetched = false; // reset guard
             const cards = document.getElementById('cardsContainer');
             if (cards) cards.innerHTML = '<div style="text-align:center; padding: 40px; color: #94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i><br>กำลังโหลดข้อมูลใหม่...</div>';
             fetchData(true);
-            fetchCheckReturnData(); // โหลดใหม่พร้อมกัน
         });
     }
 
@@ -509,7 +506,7 @@ function applyDataset(data, fromCache) {
     return true;
 }
 
-// สร้าง checkReturnData จาก Payment_Log (allData) โดยตรง — filter คอลัมน์ R > 0
+// สร้าง checkReturnData จาก Payment_Log (allData) โดยตรง
 function buildCheckReturnFromPaymentLog() {
     if (!allData.length) return;
     checkReturnData = allData.filter(item => {
