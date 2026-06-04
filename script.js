@@ -2083,9 +2083,9 @@ function renderCheckReturnTable(data) {
     if (crBanks.size === 1) {
         const bankName = Array.from(crBanks)[0];
         if (bankName === 'BBL') {
-            subtitleText = 'ธ.กรุงเทพ เลขที่บัญชี <b>(รอระบุ)</b>';
+            subtitleText = 'ธ.กรุงเทพ เลขที่บัญชี <b>249-3-01015-7</b>';
         } else if (bankName === 'TTB') {
-            subtitleText = 'ธ.ทหารไทยธนชาต เลขที่บัญชี <b>(รอระบุ)</b>';
+            subtitleText = 'ธ.ทหารไทยธนชาต เลขที่บัญชี <b>242-1-00749-9</b>';
         } else {
             subtitleText = `${bankName}`;
         }
@@ -2107,7 +2107,7 @@ function renderCheckReturnTable(data) {
         const checkNo  = getAnyValue(item, ['เลขที่เช็ค', 'เช็ค']) || '-';
         const bank     = getBank(item) || '-';
         const faceAmt  = cleanNumber(getAnyValue(item, ['ค่างวดประจำเดือน']));
-        const fee      = cleanNumber(getAnyValue(item, ['ค่าธรรมเนียมเนียมหักจากบัญชี']));
+        const fee      = cleanNumber(getAnyValue(item, ['ค่าธรรมเนียมหักจากบัญชี']));
 
         totalFaceAmt += faceAmt;
         totalFee     += fee;
