@@ -1170,6 +1170,14 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
             .cat-section-meta b { color: #0f172a; }
             .cat-section table { margin-bottom: 0; border: none; }
             .cat-section table th { background: #1d4ed8; }
+            .ctr-section { margin: 6px 8px; border: 1px solid #bfdbfe; border-radius: 3px; overflow: hidden; page-break-inside: avoid; }
+            .ctr-head { background: #dbeafe; padding: 4px 8px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #bfdbfe; font-size: 9px; }
+            .ctr-num { color: #1d4ed8; font-weight: 700; min-width: 24px; }
+            .ctr-name { color: #1e3a8a; font-weight: 700; flex: 1; }
+            .ctr-meta { color: #1d4ed8; white-space: nowrap; }
+            .ctr-section table { font-size: 9px; margin-bottom: 0; border: none; }
+            .ctr-section table th { background: #1d4ed8; font-size: 9px; padding: 3px 5px; }
+            .ctr-section table td { padding: 3px 5px; }
             .ctr-section { margin: 0 0 8px 16px; border: 1px solid #dbeafe; border-radius: 3px; overflow: hidden; }
             .ctr-head { background: #dbeafe; padding: 4px 8px; display: flex; align-items: center; gap: 6px; font-size: 9px; border-bottom: 1px solid #bfdbfe; }
             .ctr-num { color: #1d4ed8; font-weight: 700; }
