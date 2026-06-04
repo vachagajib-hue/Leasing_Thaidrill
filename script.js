@@ -1,5 +1,7 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbx724bp87IzARRIsyvx5VEPXR7UXL7GaZ5nH_rZxS-q4MDv5WMYFpM74vx2e_7rZ0cKUA/exec';
 const CACHE_KEY = 'erp_payment_cache_v1';
+const CR_CACHE_KEY = 'erp_check_return_cache_v2';
+const CR_SHEET_KEY = 'erp_check_return_sheet_name';
 
 // debounce helper — รอให้ผู้ใช้หยุดคลิก/พิมพ์สักครู่ก่อนค่อยรัน เพื่อไม่ให้กราฟ/ตารางอัปเดตทุก ๆ คลิก
 function debounce(fn, ms = 180) {
@@ -193,15 +195,12 @@ function getCurrentFilteredData() { return _lastFilteredData; }
 function initTableFilters(data) {
     const years = new Set();
     const leasings = new Set();
-    const aircodes = new Set();
     const statuses = new Set();
     data.forEach(item => {
         const d = new Date(getAnyValue(item, ['กำหนดชำระ', 'dueDate']));
         if (!isNaN(d)) years.add(d.getFullYear());
         const l = getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']);
         if (l && l !== '') leasings.add(l);
-        const a = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']);
-        if (a && a !== '') aircodes.add(String(a).trim());
         const s = getAnyValue(item, ['สถานะ', 'status']);
         if (s && s !== '') statuses.add(s);
     });
@@ -210,7 +209,6 @@ function initTableFilters(data) {
     initMultiSelect('table-filter-year', Array.from(years).sort().map(y => String(y)));
     initMultiSelect('table-filter-month', thaiMonths.map((m, i) => ({ value: String(i), label: m })));
     initMultiSelect('table-filter-leasing', Array.from(leasings).sort());
-    initMultiSelect('table-filter-aircode', Array.from(aircodes).sort());
     initMultiSelect('table-filter-status', Array.from(statuses).sort());
 }
 
@@ -366,8 +364,9 @@ function enableClickToScroll(el) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // ยิง 2 fetch พร้อมกัน — ไม่บล็อกกัน (ตารางหลัก + ตารางค่าธรรมเนียมเนียมหักจากบัญชี โหลดขนานกัน)
+    // ยิง 2 fetch พร้อมกัน — ไม่บล็อกกัน (ตารางหลัก + ตารางค่าธรรมเนียมเช็คคืน โหลดขนานกัน)
     fetchData();
+    fetchCheckReturnData();
     // เปิดใช้ click-to-scroll สำหรับทุกตาราง (.table-wrapper)
     setTimeout(() => {
         document.querySelectorAll('.table-wrapper').forEach(enableClickToScroll);
@@ -382,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
             filters.forEach(id => resetMultiSelect(id));
-            updateKPIs(allData);
+            applyFilters();
         });
     }
 
@@ -391,9 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.addEventListener('click', () => {
             allData = [];
             checkReturnData = [];
+            _checkReturnFetched = false; // reset guard
             const cards = document.getElementById('cardsContainer');
             if (cards) cards.innerHTML = '<div style="text-align:center; padding: 40px; color: #94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i><br>กำลังโหลดข้อมูลใหม่...</div>';
             fetchData(true);
+            fetchCheckReturnData(); // โหลดใหม่พร้อมกัน
         });
     }
 
@@ -426,8 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tableFilterMonth) tableFilterMonth.addEventListener('change', debouncedRenderTable);
     const tableFilterLeasing = document.getElementById('table-filter-leasing');
     if (tableFilterLeasing) tableFilterLeasing.addEventListener('change', debouncedRenderTable);
-    const tableFilterAircode = document.getElementById('table-filter-aircode');
-    if (tableFilterAircode) tableFilterAircode.addEventListener('change', debouncedRenderTable);
     const tableFilterStatus = document.getElementById('table-filter-status');
     if (tableFilterStatus) tableFilterStatus.addEventListener('change', debouncedRenderTable);
     const searchInput = document.getElementById('searchInput');
@@ -491,9 +490,12 @@ function applyDataset(data, fromCache) {
     initFilterOptions(allData);
     initTableFilters(allData);
     updateDashboard(allData);
-    buildCheckReturnFromPaymentLog();
-    initCheckReturnFilters(checkReturnData);
-    renderCheckReturnTable(checkReturnData);
+    // ถ้า checkReturnData โหลดมาก่อนแล้ว → enrich + re-render เพิ่ม bank/fee
+    if (checkReturnData.length) {
+        enrichCheckReturnFromPaymentLog();
+        initCheckReturnFilters(checkReturnData);
+        renderCheckReturnTable(checkReturnData);
+    }
     const lastUpdated = document.getElementById('lastUpdated');
     if (lastUpdated) {
         const now = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -504,14 +506,105 @@ function applyDataset(data, fromCache) {
     return true;
 }
 
-// สร้าง checkReturnData จาก Payment_Log (allData) โดยตรง
-function buildCheckReturnFromPaymentLog() {
-    if (!allData.length) return;
-    checkReturnData = allData.filter(item => {
-        const fee = cleanNumber(getAnyValue(item, ['ค่าธรรมเนียมเนียมหักจากบัญชี']));
-        return fee > 0;
+// ผสมข้อมูลธนาคาร + ค่าธรรมเนียม จาก Payment_Log (allData) เข้าไปใน checkReturnData
+// เพราะ ต้นฉบับ Payment_Log มีเลขเช็คแต่ไม่มีธนาคาร/ค่าธรรมเนียม
+function enrichCheckReturnFromPaymentLog() {
+    if (!allData.length || !checkReturnData.length) return;
+    // สร้าง map: (เลขสัญญา|งวดที่) → {bank, fee}
+    const plMap = new Map();
+    allData.forEach(pl => {
+        const contract = String(getAnyValue(pl, ['เลขสัญญา', 'contract', 'สัญญา'])).trim();
+        const inst     = String(getAnyValue(pl, ['งวดที่', 'installment', 'งวด'])).trim();
+        if (!contract || !inst) return;
+        plMap.set(`${contract}|${inst}`, {
+            bank: String(getAnyValue(pl, ['เช็คธนาคาร', 'ธนาคาร', 'Bank'])).trim(),
+            fee:  cleanNumber(getAnyValue(pl, ['ค่าธรรมเนียมเช็คคืน'])),
+            checkNo: String(getAnyValue(pl, ['เลขที่เช็ค', 'เช็ค']) || '').trim()
+        });
+    });
+    // เติม _bank, _fee, _checkNo เข้าไปในแต่ละแถวของ checkReturnData
+    checkReturnData.forEach(item => {
+        const contract = String(getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา'])).trim();
+        const inst     = String(getAnyValue(item, ['งวดที่', 'installment', 'งวด'])).trim();
+        const m = plMap.get(`${contract}|${inst}`);
+        if (m) {
+            if (m.bank) item._bank = m.bank;
+            if (m.fee > 0) item._fee = m.fee;
+            if (m.checkNo) item._checkNo = m.checkNo;
+        }
     });
 }
+
+// แสดง check return data + filters (ใช้กับ cache และ live data)
+function applyCheckReturnData(arr) {
+    checkReturnData = arr;
+    enrichCheckReturnFromPaymentLog(); // ถ้า allData พร้อมแล้วจะ enrich ทันที
+    initCheckReturnFilters(checkReturnData);
+    renderCheckReturnTable(checkReturnData);
+}
+
+// ดึงข้อมูลค่าธรรมเนียมเช็คคืนจาก sheet แยก (ทำงานแบบ parallel ไม่บล็อก main fetch)
+let _checkReturnFetched = false; // กันยิงซ้ำ
+async function fetchCheckReturnData() {
+    if (_checkReturnFetched) return;
+    _checkReturnFetched = true;
+
+    const wrapper = document.getElementById('checkReturnTableWrapper');
+
+    // 1) โหลดจาก cache ก่อน เพื่อให้ UI ขึ้นทันที (instant render)
+    try {
+        const cached = JSON.parse(localStorage.getItem(CR_CACHE_KEY) || 'null');
+        if (cached && Array.isArray(cached.data) && cached.data.length) {
+            applyCheckReturnData(cached.data);
+        }
+    } catch (e) { /* ignore */ }
+
+    try {
+        // 2) ใช้ sheet name ที่ cache ไว้ ถ้ามี → ข้าม listSheets call (เซฟ 1 round-trip)
+        let target = localStorage.getItem(CR_SHEET_KEY) || '';
+
+        if (!target) {
+            const listRes = await fetch(API_URL + '?action=listSheets');
+            const listData = await listRes.json();
+            const sheets = (listData && listData.sheets) || [];
+            target = sheets.find(n => n.includes('เช็คคืน') || n.includes('ค่าธรรมเนียม'))
+                  || sheets.find(n => n.includes('ต้นฉบับ') || n.toLowerCase().includes('original'))
+                  || sheets.find(n => n !== 'Payment_Log' && !/check.*return/i.test(n));
+
+            if (!target) {
+                if (wrapper && !checkReturnData.length) wrapper.innerHTML = `<div class="empty-state"><i class="fas fa-triangle-exclamation"></i><span>ไม่พบ tab สำหรับค่าธรรมเนียมเช็คคืน<br><small style="opacity:0.7">tab ที่มี: ${sheets.join(', ')}</small></span></div>`;
+                return;
+            }
+            localStorage.setItem(CR_SHEET_KEY, target);
+        }
+
+        // 3) ดึงข้อมูลสด
+        const response = await fetch(API_URL + '?sheet=' + encodeURIComponent(target));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const raw = await response.json();
+        let arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.data) ? raw.data : []);
+        arr = arr.filter(item =>
+            item && typeof item === 'object' &&
+            Object.values(item).some(v => v !== '' && v !== null && v !== undefined)
+        );
+
+        // เอาตัวกรองที่ซ่อนข้อมูลออก เพื่อให้ตารางนี้ดึงข้อมูลมาแสดงครบทุกแถวเหมือนใน Google Sheets
+
+        applyCheckReturnData(arr);
+
+        // เซฟ cache สำหรับเปิดครั้งหน้า
+        try {
+            localStorage.setItem(CR_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: arr }));
+        } catch (e) { /* quota exceeded — ignore */ }
+    } catch (e) {
+        console.error('Fetch check return error:', e);
+        // ถ้ายังมี cache แสดงอยู่ ไม่ทับ UI ด้วย error
+        if (!checkReturnData.length && wrapper) {
+            wrapper.innerHTML = `<div class="empty-state"><i class="fas fa-triangle-exclamation"></i><span>โหลดข้อมูลค่าธรรมเนียมเช็คคืนไม่สำเร็จ: ${e.message}</span></div>`;
+        }
+    }
+}
+
 async function fetchData(forceRefresh = false) {
     const cardsContainer = document.getElementById('cardsContainer');
 
@@ -1144,7 +1237,6 @@ function renderTable(data) {
     const tYears = getMultiSelectSelected('table-filter-year');
     const tMonths = getMultiSelectSelected('table-filter-month');
     const tLeasings = getMultiSelectSelected('table-filter-leasing');
-    const tAircodes = getMultiSelectSelected('table-filter-aircode');
     const tStatuses = getMultiSelectSelected('table-filter-status');
     const tSearch = (document.getElementById('searchInput')?.value || '').toLowerCase();
 
@@ -1153,10 +1245,9 @@ function renderTable(data) {
         const matchY = !tYears.size || (!isNaN(d) && tYears.has(d.getFullYear().toString()));
         const matchM = !tMonths.size || (!isNaN(d) && tMonths.has(d.getMonth().toString()));
         const matchL = !tLeasings.size || tLeasings.has(String(getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท'])));
-        const matchAir = !tAircodes.size || tAircodes.has(String(getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code'])));
         const matchSt = !tStatuses.size || tStatuses.has(String(getAnyValue(item, ['สถานะ', 'status'])));
         const matchS = !tSearch || Object.values(item).some(v => v && v.toString().toLowerCase().includes(tSearch));
-        return matchY && matchM && matchL && matchAir && matchSt && matchS;
+        return matchY && matchM && matchL && matchSt && matchS;
     });
 
     if (countBadge) countBadge.textContent = `${filtered.length.toLocaleString()} รายการ`;
@@ -1279,65 +1370,8 @@ function initFilterOptions(data) {
     initMultiSelect('filter-leasing', Array.from(leasings).sort());
     initMultiSelect('filter-aircode', Array.from(aircodes).sort());
     initMultiSelect('filter-status', Array.from(statuses).sort());
-    initMultiSelect('trend-filter-year', Array.from(years).sort().map(y => String(y)));
-    initMultiSelect('trend-filter-leasing', Array.from(leasings).sort());
-    initMultiSelect('trend-filter-status', Array.from(statuses).sort());
-    initMultiSelect('step-filter-year', Array.from(years).sort().map(y => String(y)));
-    initMultiSelect('step-filter-month', thaiMonths.map((m, i) => ({ value: String(i), label: m })));
-    initMultiSelect('step-filter-status', Array.from(statuses).sort());
-    initChartFilterListeners();
 }
 
-function _applyChartLocalFilter(src, ids) {
-    const y = ids.year    ? getMultiSelectSelected(ids.year)    : new Set();
-    const m = ids.month   ? getMultiSelectSelected(ids.month)   : new Set();
-    const l = ids.leasing ? getMultiSelectSelected(ids.leasing) : new Set();
-    const s = ids.status  ? getMultiSelectSelected(ids.status)  : new Set();
-    if (!y.size && !m.size && !l.size && !s.size) return src;
-    return src.filter(item => {
-        const d = new Date(getAnyValue(item, ['กำหนดชำระ', 'dueDate']));
-        return (!y.size || (!isNaN(d) && y.has(d.getFullYear().toString())))
-            && (!m.size || (!isNaN(d) && m.has(d.getMonth().toString())))
-            && (!l.size || l.has(String(getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing']))))
-            && (!s.size || s.has(String(getAnyValue(item, ['สถานะ', 'status']))));
-    });
-}
-function _updateChartFilterBadge(rowId, ids) {
-    const r = document.getElementById(rowId);
-    if (r) r.classList.toggle('has-filter', Object.values(ids).some(id => id && getMultiSelectSelected(id).size > 0));
-}
-function applyTrendChartFilter() {
-    const ids = { year:'trend-filter-year', leasing:'trend-filter-leasing', status:'trend-filter-status' };
-    _updateChartFilterBadge('trend-filter-row', ids);
-    const base = _lastFilteredData.length > 0 ? _lastFilteredData : allData;
-    renderTrendChart(_applyChartLocalFilter(base, ids));
-}
-function applyStepChartFilter() {
-    const ids = { year:'step-filter-year', month:'step-filter-month', status:'step-filter-status' };
-    _updateChartFilterBadge('step-filter-row', ids);
-    const base = _lastFilteredData.length > 0 ? _lastFilteredData : allData;
-    renderStepLineChart(_applyChartLocalFilter(base, ids));
-}
-function initChartFilterListeners() {
-    const dT = debounce(applyTrendChartFilter, 200);
-    const dS = debounce(applyStepChartFilter, 200);
-    ['trend-filter-year','trend-filter-leasing','trend-filter-status'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.addEventListener('change', dT);
-    });
-    ['step-filter-year','step-filter-month','step-filter-status'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.addEventListener('change', dS);
-    });
-    const tR = document.getElementById('trend-filter-reset');
-    if (tR) tR.addEventListener('click', () => {
-        ['trend-filter-year','trend-filter-leasing','trend-filter-status'].forEach(id => resetMultiSelect(id));
-        applyTrendChartFilter();
-    });
-    const sR = document.getElementById('step-filter-reset');
-    if (sR) sR.addEventListener('click', () => {
-        ['step-filter-year','step-filter-month','step-filter-status'].forEach(id => resetMultiSelect(id));
-        applyStepChartFilter();
-    });
-}
 function applyFilters() {
     // ตัวกรองบนหัวเว็บใช้กรองเฉพาะกราฟ "แนวโน้มยอดชำระรายเดือน" + "ยอดค่างวดตามชื่อรหัส"
     // รองรับการเลือกหลายค่า ถ้า Set ว่าง = ผ่านทุกค่า
@@ -1358,7 +1392,8 @@ function applyFilters() {
         const matchStatus = !statuses.size || statuses.has(String(getAnyValue(item, ['สถานะ', 'status'])));
         return matchYear && matchMonth && matchDay && matchLeasing && matchAircode && matchStatus;
     });
-    updateKPIs(filtered);
+    renderTrendChart(filtered);
+    renderStepLineChart(filtered);
 }
 
 function updateDashboard(data) {
@@ -1370,8 +1405,8 @@ function updateDashboard(data) {
 
 function renderCharts(data) {
     if (typeof Chart === 'undefined') return;
-    applyTrendChartFilter();
-    applyStepChartFilter();
+    renderTrendChart(data);
+    renderStepLineChart(data);
 }
 
 function renderTrendChart(data) {
@@ -1987,7 +2022,7 @@ function initCheckReturnFilters(data) {
         const l = getAnyValue(item, ['ชื่อลิสซิ่ง']);
         if (l && l !== '') leasings.add(String(l).trim());
         // ธนาคาร = ใช้ _bank (จาก Payment_Log enrich) ก่อน, fallback อื่นๆ
-        const b = getAnyValue(item, ['เช็คธนาคาร', 'ธนาคาร', 'Bank']);
+        const b = item._bank || getAnyValue(item, ['เช็คธนาคาร', 'ธนาคาร', 'Bank']);
         if (b && String(b).trim() !== '') banks.add(String(b).trim());
     });
 
@@ -2005,7 +2040,7 @@ function renderCheckReturnTable(data) {
 
     if (!data || data.length === 0) {
         if (countBadge) countBadge.textContent = '0 รายการ';
-        wrapper.innerHTML = `<div class="empty-state"><i class="fas fa-folder-open"></i><span>ไม่พบข้อมูลค่าธรรมเนียมเนียมหักจากบัญชี</span></div>`;
+        wrapper.innerHTML = `<div class="empty-state"><i class="fas fa-folder-open"></i><span>ไม่พบข้อมูลค่าธรรมเนียมเช็คคืน</span></div>`;
         return;
     }
 
@@ -2018,12 +2053,13 @@ function renderCheckReturnTable(data) {
 
     // ต้นฉบับ Payment_Log mapping (ตามคอลัมน์จริง):
     // A=กำหนดชำระ, B=ชื่อลิสซิ่ง, C=เลขสัญญา, H=งวดที่, I=ค่างวดประจำเดือน (faceAmt),
-    // L=เลขที่เช็ค, N=ธนาคาร, O=ค่าธรรมเนียมเนียมหักจากบัญชี
-    const DATE_KEYS    = ['กำหนดชำระ'];
+    // L=เลขที่เช็ค, N=ธนาคาร, O=ค่าธรรมเนียมเช็คคืน
+    const DATE_KEYS    = ['วันที่เช็คคืน'];
     const LEASING_KEYS = ['ชื่อลิสซิ่ง'];
 
     // helper: ดึงธนาคาร — ใช้ _bank (จาก Payment_Log enrich) ก่อน, fallback อื่นๆ
     const getBank = (item) => {
+        if (item._bank) return String(item._bank).trim();
         const b = getAnyValue(item, ['เช็คธนาคาร', 'ธนาคาร', 'Bank']);
         return String(b || '').trim();
     };
@@ -2047,9 +2083,9 @@ function renderCheckReturnTable(data) {
     if (crBanks.size === 1) {
         const bankName = Array.from(crBanks)[0];
         if (bankName === 'BBL') {
-            subtitleText = 'ธ.กรุงเทพ เลขที่บัญชี <b>249-3-01015-7</b>';
+            subtitleText = 'ธ.กรุงเทพ เลขที่บัญชี <b>(รอระบุ)</b>';
         } else if (bankName === 'TTB') {
-            subtitleText = 'ธ.ทหารไทยธนชาต เลขที่บัญชี <b>242-1-00749-9</b>';
+            subtitleText = 'ธ.ทหารไทยธนชาต เลขที่บัญชี <b>(รอระบุ)</b>';
         } else {
             subtitleText = `${bankName}`;
         }
@@ -2117,12 +2153,12 @@ function renderCheckReturnTable(data) {
 
 function exportCheckReturnPDF() {
     const table = document.querySelector('.check-return-table');
-    if (!table) { alert('ไม่พบข้อมูลค่าธรรมเนียมเนียมหักจากบัญชี'); return; }
+    if (!table) { alert('ไม่พบข้อมูลค่าธรรมเนียมเช็คคืน'); return; }
 
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { alert('กรุณาอนุญาต popup'); return; }
 
-    const title = `ค่าธรรมเนียมเนียมหักจากบัญชี — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
+    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
 
     const clone = table.cloneNode(true);
     clone.querySelectorAll('th, td').forEach(el => {
@@ -2169,7 +2205,7 @@ function exportCheckReturnPDF() {
             td:nth-child(7), th:nth-child(7) { text-align:center; }
             td:nth-child(8), th:nth-child(8) { text-align:right; }
             td:nth-child(9), th:nth-child(9) { text-align:right; }
-            td:nth-child(8) { color:#111827; font-weight:700; }
+            td:nth-child(8) { color:#dc2626; font-weight:700; }
             td:nth-child(9) { color:#dc2626; font-weight:700; }
         </style></head><body>
         <div class="toolbar">
@@ -2177,7 +2213,7 @@ function exportCheckReturnPDF() {
             <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
         </div>
         <div class="body">
-        ${buildThaiDrillHeader(`ค่าธรรมเนียมเนียมหักจากบัญชี <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span>`, subtitleText)}
+        ${buildThaiDrillHeader(`ค่าธรรมเนียมเช็คคืน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span>`, subtitleText)}
         <table>
             <colgroup>
                 <col style="width:5%"><col style="width:9%"><col style="width:23%"><col style="width:12%">
