@@ -948,97 +948,6 @@ function showStatusModal(statusType) {
             <div class="cat-accordion-list">${categoryCardsHtml}</div>
         </div>`;
 
-    // view รวมกลุ่มสัญญา
-    const contractGroupMap = {};
-    data.forEach(item => {
-        const lname = (getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '(ไม่ระบุ)').toString().trim();
-        const cname = (getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '(ไม่ระบุ)').toString().trim();
-        const amt   = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
-        if (!contractGroupMap[lname]) contractGroupMap[lname] = { sum: 0, contracts: {} };
-        contractGroupMap[lname].sum += amt;
-        if (!contractGroupMap[lname].contracts[cname]) contractGroupMap[lname].contracts[cname] = { sum: 0, items: [] };
-        contractGroupMap[lname].contracts[cname].sum += amt;
-        contractGroupMap[lname].contracts[cname].items.push(item);
-    });
-    const contractLeasings = Object.entries(contractGroupMap).sort((a, b) => b[1].sum - a[1].sum);
-    const contractCardsHtml = contractLeasings.length === 0
-        ? '<div style="text-align:center;padding:40px;color:var(--text-muted);">ไม่พบข้อมูล</div>'
-        : contractLeasings.map(([lname, ldata], li) => {
-            const contracts = Object.entries(ldata.contracts).sort((a, b) => b[1].sum - a[1].sum);
-            const contractAccordions = contracts.map(([cname, cdata], ci) => {
-                const itemRows = cdata.items.map((item, ii) => {
-                    const d = parseDueDate(getAnyValue(item, ['กำหนดชำระ', 'dueDate']));
-                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
-                    const air = getAnyValue(item, ['Air Code', 'airCode', 'AirCode']) || '-';
-                    const inst = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
-                    const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
-                    const st = (getAnyValue(item, ['สถานะ', 'status']) || '-').toString();
-                    const sc = st.includes('เกินกำหนด') ? 'color:var(--danger)' : st.includes('ยังไม่ถึงกำหนด') ? 'color:var(--warning)' : 'color:var(--success)';
-                    return `<tr style="${ii%2===1?'background:rgba(255,255,255,0.03)':''}">
-                        <td style="padding:4px 8px;text-align:center;color:var(--text-muted)">${ii+1}</td>
-                        <td style="padding:4px 8px;text-align:center;white-space:nowrap">${dateDisp}</td>
-                        <td style="padding:4px 8px;text-align:center;color:var(--text-dim)">${air}</td>
-                        <td style="padding:4px 8px;text-align:center">${inst}</td>
-                        <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--accent)">${amt2.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                        <td style="padding:4px 8px;text-align:center;font-weight:700;font-size:11px;${sc}">${st}</td>
-                    </tr>`;
-                }).join('');
-                const subtotal = `<tr style="border-top:1px solid rgba(99,102,241,0.3);background:rgba(99,102,241,0.07)">
-                    <td colspan="4" style="padding:4px 8px;text-align:right;font-size:11px;color:var(--text-dim)">รวมสัญญานี้</td>
-                    <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--accent)">${cdata.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                    <td></td>
-                </tr>`;
-                return `<div class="ctr-acc" data-ctr-li="${li}" data-ctr-ci="${ci}">
-                    <button type="button" class="ctr-acc-head">
-                        <span class="ctr-toggle"><i class="fas fa-plus"></i></span>
-                        <span class="ctr-cname">${cname}</span>
-                        <span class="ctr-meta">${cdata.items.length} งวด</span>
-                        <span class="ctr-amt">${cdata.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
-                    </button>
-                    <div class="ctr-acc-body">
-                        <table class="status-modal-table" style="font-size:11px;">
-                            <thead><tr>
-                                <th style="width:40px;text-align:center">#</th>
-                                <th style="text-align:center">กำหนดชำระ</th>
-                                <th style="text-align:center">Air Code</th>
-                                <th style="text-align:center;width:60px">งวดที่</th>
-                                <th style="text-align:right">ค่างวดประจำ</th>
-                                <th style="text-align:center">สถานะ</th>
-                            </tr></thead>
-                            <tbody>${itemRows}${subtotal}</tbody>
-                        </table>
-                    </div>
-                </div>`;
-            }).join('');
-            return `<div class="cat-accordion" data-cat-idx="${li}">
-                <button type="button" class="cat-accordion-head">
-                    <span class="cat-accordion-toggle"><i class="fas fa-plus"></i></span>
-                    <span class="cat-accordion-name" title="${lname}">${lname}</span>
-                    <span class="cat-accordion-count">${Object.keys(ldata.contracts).length} สัญญา</span>
-                    <span class="cat-accordion-pct">${pct(ldata.sum)}</span>
-                    <span class="cat-accordion-amt">${fmtMoney(ldata.sum)}</span>
-                </button>
-                <div class="cat-accordion-body">
-                    <div class="ctr-acc-list">${contractAccordions}</div>
-                </div>
-            </div>`;
-        }).join('');
-    const contractViewHtml = `
-        <div class="status-modal-scroll" data-view-pane="contract" hidden>
-            <style>
-                .ctr-acc-head{width:100%;display:flex;align-items:center;gap:8px;padding:7px 12px;background:transparent;border:none;cursor:pointer;font-family:inherit;color:inherit;border-top:1px solid rgba(255,255,255,0.06);}
-                .ctr-acc-head:hover{background:rgba(99,102,241,0.08);}
-                .ctr-toggle{font-size:11px;color:var(--accent);min-width:14px;}
-                .ctr-cname{flex:1;font-size:12px;font-weight:600;text-align:left;color:var(--accent);}
-                .ctr-meta{font-size:11px;color:var(--text-dim);}
-                .ctr-amt{font-size:12px;font-weight:700;color:var(--accent);margin-left:auto;}
-                .ctr-acc-body{display:none;padding:0 0 4px 0;}
-                .ctr-acc.expanded .ctr-acc-body{display:block;}
-                .ctr-acc-list{padding:4px 8px 4px 24px;}
-            </style>
-            <div class="cat-accordion-list">${contractCardsHtml}</div>
-        </div>`;
-
     bodyEl.innerHTML = `
         <div class="status-modal-summary">
             <span>รายการทั้งหมด: <b>${data.length} รายการ</b></span>
@@ -1046,13 +955,11 @@ function showStatusModal(statusType) {
             <div class="status-modal-view-toggle">
                 <button type="button" class="view-toggle-btn active" data-view="list"><i class="fas fa-list"></i> รายการ</button>
                 <button type="button" class="view-toggle-btn" data-view="category"><i class="fas fa-layer-group"></i> สรุปหมวดหมู่</button>
-                <button type="button" class="view-toggle-btn" data-view="contract"><i class="fas fa-folder-open"></i> รวมกลุ่มสัญญา</button>
             </div>
             <button type="button" class="btn-export-status-pdf"><i class="fas fa-file-pdf"></i> Export PDF</button>
         </div>
         ${listViewHtml}
-        ${categoryViewHtml}
-        ${contractViewHtml}`;
+        ${categoryViewHtml}`;
 
     // สลับ view
     bodyEl.querySelectorAll('.view-toggle-btn').forEach(btn => {
@@ -1069,15 +976,6 @@ function showStatusModal(statusType) {
             const wrap = head.closest('.cat-accordion');
             const expanded = wrap.classList.toggle('expanded');
             const icon = head.querySelector('.cat-accordion-toggle i');
-            if (icon) icon.className = expanded ? 'fas fa-minus' : 'fas fa-plus';
-        });
-    });
-    // กาง/พับสัญญา
-    bodyEl.querySelectorAll('.ctr-acc-head').forEach(head => {
-        head.addEventListener('click', () => {
-            const wrap = head.closest('.ctr-acc');
-            const expanded = wrap.classList.toggle('expanded');
-            const icon = head.querySelector('.ctr-toggle i');
             if (icon) icon.className = expanded ? 'fas fa-minus' : 'fas fa-plus';
         });
     });
@@ -1115,12 +1013,13 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                 const contracts = Object.entries(ldata.contracts).sort((a, b) => b[1].sum - a[1].sum);
                 const contractSections = contracts.map(([cname, cdata], ci) => {
                     const itemRows = cdata.items.map((item, ii) => {
-                        const d = typeof parseDueDate === 'function' ? parseDueDate(item['กำหนดชำระ'] || item['dueDate'] || '') : null;
-                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : (item['กำหนดชำระ'] || '-');
-                        const air = item['Air Code'] || item['airCode'] || item['AirCode'] || '-';
-                        const inst = item['งวดที่'] || item['installment'] || '-';
-                        const amt2 = typeof cleanNumber === 'function' ? cleanNumber(item['ค่างวดประจำ'] || item['amount'] || item['ยอดเงิน'] || 0) : 0;
-                        const st = item['สถานะ'] || item['status'] || '-';
+                        const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
+                        const d = parseDueDate(rawDate);
+                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : (rawDate || '-');
+                        const air = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
+                        const inst = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
+                        const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
+                        const st = getAnyValue(item, ['สถานะ', 'status']) || '-';
                         const sc = st.includes('เกินกำหนด') ? 'color:#dc2626' : st.includes('ยังไม่ถึงกำหนด') ? 'color:#d97706' : 'color:#059669';
                         return `<tr style="${ii%2===1?'background:#f8fafc':''}">
                             <td style="text-align:center;color:#9ca3af">${ii+1}</td>
