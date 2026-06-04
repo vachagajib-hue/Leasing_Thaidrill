@@ -439,6 +439,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExportTablePdf = document.getElementById('btnExportTablePdf');
     if (btnExportTablePdf) btnExportTablePdf.addEventListener('click', exportTablePDF);
 
+    // PDF งวดสุดท้าย ≤200K
+    const btnLastInstPDF = document.getElementById('btnLastInstPDF');
+    if (btnLastInstPDF) btnLastInstPDF.addEventListener('click', exportLastInstallmentsPDF);
+
     // Check Return section listeners
     const debouncedRenderCR = debounce(() => renderCheckReturnTable(checkReturnData), 220);
     const crFilterYear = document.getElementById('cr-filter-year');
@@ -1296,6 +1300,202 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
             ${bodyContent}
         </div>
         </body></html>`);
+    win.document.close();
+}
+
+function exportLastInstallmentsPDF() {
+    if (!allData.length) { alert('ยังไม่มีข้อมูล'); return; }
+
+    // ขั้นตอนที่ 1: จัดกลุ่ม allData ตามสัญญา
+    const contractMap = {};
+    allData.forEach(item => {
+        const lname = (getAnyValue(item, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || '(ไม่ระบุ)').toString().trim();
+        const cname = (getAnyValue(item, ['เลขสัญญา','contract','สัญญา']) || '(ไม่ระบุ)').toString().trim();
+        const key   = lname + '|||' + cname;
+        if (!contractMap[key]) contractMap[key] = { lname, cname, items: [] };
+        contractMap[key].items.push(item);
+    });
+
+    // ขั้นตอนที่ 2: แต่ละสัญญา — เรียงงวดจากมากไปน้อย แล้วสะสมจากงวดสุดท้าย
+    const LIMIT = 200000;
+    const qualified = {}; // lname → { sum, contracts: [ {cname, rows, total, instRange} ] }
+
+    Object.values(contractMap).forEach(({ lname, cname, items }) => {
+        // parse งวดที่ เช่น "57/60" → { num: 57, total: 60 }
+        const parseInst = (v) => {
+            const s = String(v || '').trim();
+            const m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+            return m ? { num: parseInt(m[1]), total: parseInt(m[2]), raw: s } : { num: 0, total: 0, raw: s };
+        };
+
+        // เรียงจากงวดมากไปน้อย (งวดสุดท้ายก่อน)
+        const sorted = [...items].sort((a, b) => {
+            const ia = parseInst(getAnyValue(a, ['งวดที่','installment','งวด']));
+            const ib = parseInst(getAnyValue(b, ['งวดที่','installment','งวด']));
+            return ib.num - ia.num || ib.total - ia.total;
+        });
+
+        // สะสมยอดจากงวดสุดท้ายจนเกิน LIMIT
+        let acc = 0;
+        const rows = [];
+        for (const item of sorted) {
+            const amt = cleanNumber(getAnyValue(item, ['ค่างวดประจำ','amount','ยอดเงิน','ยอดชำระ','ยอด']));
+            if (acc + amt > LIMIT) break;
+            acc += amt;
+            rows.push({ item, amt, acc });
+        }
+        if (rows.length === 0) return; // ไม่มีงวดที่เข้าเงื่อนไข
+
+        // เรียงกลับจากน้อยไปมาก (งวดเก่าสุดก่อน) เพื่อแสดงตาราง
+        rows.reverse();
+
+        // หาช่วงงวด
+        const instNums = rows.map(r => parseInst(getAnyValue(r.item, ['งวดที่','installment','งวด'])));
+        const minInst  = instNums[0]?.raw || '-';
+        const maxInst  = instNums[instNums.length - 1]?.raw || '-';
+        const instRange = minInst === maxInst ? minInst : `${minInst} – ${maxInst}`;
+
+        if (!qualified[lname]) qualified[lname] = { sum: 0, contracts: [] };
+        qualified[lname].sum += acc;
+        qualified[lname].contracts.push({ cname, rows, total: acc, instRange });
+    });
+
+    if (Object.keys(qualified).length === 0) {
+        alert('ไม่พบสัญญาที่มียอดสะสมงวดสุดท้าย ≤ 200,000 บาท');
+        return;
+    }
+
+    // ขั้นตอนที่ 3: สร้าง HTML
+    const dateStr = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+    const fmtAmt  = n => n.toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+    const leasingEntries = Object.entries(qualified).sort((a, b) => b[1].sum - a[1].sum);
+    let totalAll = 0;
+    leasingEntries.forEach(([, v]) => { totalAll += v.sum; });
+
+    const bodyContent = leasingEntries.map(([lname, ldata], li) => {
+        const contractSections = ldata.contracts.sort((a, b) => b.total - a.total).map((c, ci) => {
+            const itemRows = c.rows.map((r, ii) => {
+                const d = parseDueDate(getAnyValue(r.item, ['กำหนดชำระ','dueDate']));
+                const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
+                const air  = getAnyValue(r.item, ['Air Code','airCode','AirCode','air code']) || '-';
+                const inst = getAnyValue(r.item, ['งวดที่','installment','งวด']) || '-';
+                const st   = getAnyValue(r.item, ['สถานะ','status']) || '-';
+                const sc   = st.includes('เกินกำหนด') ? 'color:#dc2626' : st.includes('ยังไม่ถึงกำหนด') ? 'color:#d97706' : 'color:#059669';
+                return `<tr style="${ii%2===1?'background:#f8fafc':''}">
+                    <td style="padding:3px 5px;text-align:center;color:#9ca3af">${ii+1}</td>
+                    <td style="padding:3px 5px;text-align:center;white-space:nowrap">${dateDisp}</td>
+                    <td style="padding:3px 5px;text-align:center;color:#6b7280">${air}</td>
+                    <td style="padding:3px 5px;text-align:center">${inst}</td>
+                    <td style="padding:3px 5px;text-align:right;font-weight:700;color:#1d4ed8">${fmtAmt(r.amt)}</td>
+                    <td style="padding:3px 5px;text-align:right;color:#059669;font-weight:700">${fmtAmt(r.acc)}</td>
+                    <td style="padding:3px 5px;text-align:center;font-weight:700;font-size:9px;${sc}">${st}</td>
+                </tr>`;
+            }).join('');
+            const subtotal = `<tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
+                <td colspan="4" style="padding:3px 5px;text-align:right;font-size:9px;color:#6b7280">รวมสัญญานี้</td>
+                <td style="padding:3px 5px;text-align:right;font-weight:700;color:#1d4ed8">${fmtAmt(c.total)}</td>
+                <td colspan="2"></td>
+            </tr>`;
+            return `<div class="ctr-section">
+                <div class="ctr-head">
+                    <span class="ctr-num">${li+1}.${ci+1}</span>
+                    <span class="ctr-name">${c.cname}</span>
+                    <span class="ctr-meta">${c.rows.length} งวด &nbsp;·&nbsp; ${c.instRange} &nbsp;·&nbsp; <b>${fmtAmt(c.total)}</b></span>
+                </div>
+                <table>
+                    <colgroup>
+                        <col style="width:5%"><col style="width:13%"><col style="width:12%">
+                        <col style="width:9%"><col style="width:14%"><col style="width:14%"><col style="width:12%">
+                    </colgroup>
+                    <thead><tr>
+                        <th>#</th><th>กำหนดชำระ</th><th>Air Code</th>
+                        <th>งวดที่</th><th style="text-align:right">ค่างวด</th>
+                        <th style="text-align:right">ยอดสะสม</th><th>สถานะ</th>
+                    </tr></thead>
+                    <tbody>${itemRows}${subtotal}</tbody>
+                </table>
+            </div>`;
+        }).join('');
+        return `<section class="cat-section">
+            <div class="cat-section-head">
+                <span class="cat-section-num">${li+1}.</span>
+                <span class="cat-section-name">${lname}</span>
+                <span class="cat-section-meta">${ldata.contracts.length} สัญญา &nbsp;·&nbsp; <b>${fmtAmt(ldata.sum)}</b></span>
+            </div>
+            ${contractSections}
+        </section>`;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) { alert('กรุณาอนุญาต popup'); return; }
+
+    win.document.write(`<!DOCTYPE html><html lang="th"><head>
+        <meta charset="UTF-8"><title>งวดสุดท้าย ≤200K — ${dateStr}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+            @page { size: A4 portrait; margin: 10mm; }
+            @media print {
+                .toolbar { display:none!important; }
+                body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+                thead tr { background:#7c3aed!important; }
+                thead th { color:#fff!important; }
+                thead { display:table-header-group; }
+                tr { page-break-inside:avoid; }
+                .cat-section { page-break-inside:auto; }
+            }
+            * { box-sizing:border-box; margin:0; padding:0; }
+            body { font-family:'Sarabun',sans-serif; background:#e5e7eb; color:#111827; }
+            .toolbar { position:sticky; top:0; z-index:10; background:#1e293b; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:10px 20px; }
+            .toolbar-title { font-size:13px; color:#94a3b8; }
+            .btn-print { background:#7c3aed; color:#fff; border:none; padding:8px 18px; border-radius:7px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+            .doc { padding:14px; max-width:210mm; margin:0 auto; background:#fff; }
+            .doc-meta { font-size:10px; color:#6b7280; margin-bottom:12px; }
+            .doc-meta b { color:#0f172a; }
+            table { width:100%; border-collapse:collapse; font-size:9px; table-layout:fixed; margin-bottom:8px; }
+            th, td { border:1px solid #cbd5e1; padding:4px 5px; word-wrap:break-word; }
+            th { background:#7c3aed; color:#fff; text-align:center; border-color:#6d28d9; font-weight:700; font-size:9px; }
+            td { color:#111827; vertical-align:middle; }
+            tbody tr:nth-child(even) td { background:#f8fafc; }
+            .cat-section { margin-bottom:14px; border:1px solid #cbd5e1; border-radius:4px; overflow:hidden; }
+            .cat-section-head { background:#f5f3ff; padding:6px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid #ddd6fe; font-size:10px; }
+            .cat-section-num { color:#6b7280; font-weight:700; }
+            .cat-section-name { color:#0f172a; font-weight:700; flex:1; }
+            .cat-section-meta { color:#7c3aed; font-weight:600; white-space:nowrap; }
+            .cat-section-meta b { color:#0f172a; }
+            .cat-section table { margin-bottom:0; border:none; }
+            .cat-section table th { background:#7c3aed; }
+            .ctr-section { margin:6px 8px; border:1px solid #ddd6fe; border-radius:3px; overflow:hidden; page-break-inside:avoid; }
+            .ctr-head { background:#ede9fe; padding:4px 8px; display:flex; align-items:center; gap:6px; border-bottom:1px solid #ddd6fe; font-size:9px; }
+            .ctr-num { color:#7c3aed; font-weight:700; min-width:24px; }
+            .ctr-name { color:#4c1d95; font-weight:700; flex:1; }
+            .ctr-meta { color:#7c3aed; white-space:nowrap; }
+            .ctr-section table { font-size:9px; margin-bottom:0; border:none; }
+            .ctr-section table th { background:#7c3aed; font-size:9px; padding:3px 5px; }
+            .ctr-section table td { padding:3px 5px; }
+            .grand-total { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:4px; padding:8px 12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center; font-size:11px; }
+        </style></head><body>
+        <div class="toolbar">
+            <span class="toolbar-title">รายงานงวดสุดท้าย ≤200K — ${dateStr}</span>
+            <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
+        </div>
+        <div class="doc">
+            ${buildThaiDrillHeader('รายงานงวดสุดท้าย ≤ 200,000 บาท <span style="color:#7c3aed;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr)}
+            <div class="doc-meta">
+                คำนวณจากงวดสุดท้ายย้อนขึ้น จนยอดสะสมถึง 200,000 บาท · แยกตามลิสซิ่ง<br>
+                พบ <b>${leasingEntries.length} ลิสซิ่ง</b> · <b>${Object.values(qualified).reduce((s,v)=>s+v.contracts.length,0)} สัญญา</b> · ยอดรวมทั้งสิ้น <b>${fmtAmt(totalAll)}</b>
+            </div>
+            ${bodyContent}
+            <div class="grand-total">
+                <span style="font-weight:700;color:#4c1d95;">ยอดรวมทั้งสิ้น</span>
+                <span style="font-size:13px;font-weight:700;color:#7c3aed;">${fmtAmt(totalAll)}</span>
+            </div>
+            <div style="margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;">
+                <span>ระบบฐานข้อมูลลิสซิ่ง รถเจาะไทย 2026</span>
+                <span>เอกสารนี้สร้างโดยระบบอัตโนมัติ — ห้ามแก้ไข</span>
+            </div>
+        </div>
+    </body></html>`);
     win.document.close();
 }
 
