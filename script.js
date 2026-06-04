@@ -2232,19 +2232,19 @@ function exportCheckReturnPDF() {
             <div style="width:28%;">
                 <div style="margin-bottom:40px; font-weight:700;">ผู้จัดทำ</div>
                 <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( .................................................. )</div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
                 <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
             </div>
             <div style="width:28%;">
                 <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (การเงิน)</div>
                 <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( .................................................. )</div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
                 <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
             </div>
             <div style="width:28%;">
                 <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (บัญชี)</div>
                 <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( .................................................. )</div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
                 <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
             </div>
         </div>
