@@ -2323,14 +2323,22 @@ function buildNearEndData(limit) {
         if (rows.length === 0) return;
         rows.reverse();
         var instNums = rows.map(function(r) { return parseInst(getAnyValue(r.item, ['งวดที่','installment','งวด'])); });
-        var minInst = instNums[0] ? instNums[0].raw : '-';
-        var maxInst = instNums[instNums.length-1] ? instNums[instNums.length-1].raw : '-';
-        var instRange = minInst === maxInst ? minInst : (minInst + ' – ' + maxInst);
-        var lastInst = instNums[instNums.length-1] ? instNums[instNums.length-1].raw : '-';
+        var minP = instNums[0];
+        var maxP = instNums[instNums.length-1];
+        // แสดงเป็น "งวด 56-60" หรือ "งวด 60/60" ถ้างวดเดียว
+        var instRange;
+        if (minP && maxP && minP.num !== maxP.num) {
+            instRange = minP.num + ' – ' + maxP.raw;
+        } else if (maxP) {
+            instRange = maxP.raw;
+        } else { instRange = '-'; }
+        var lastInst = maxP ? maxP.raw : '-';
         var perAmt = rows.length > 0 ? rows[0].amt : 0;
-        if (!qualified[lname]) qualified[lname] = { sum: 0, rows: [] };
-        qualified[lname].sum += acc;
-        qualified[lname].rows.push({ cname: cname, rows: rows, total: acc, instRange: instRange, lastInst: lastInst, perAmt: perAmt, count: rows.length });
+        // ใช้ชื่อลิสซิ่งจริงจาก item แรกของกลุ่มนี้ เป็น group key
+        var lnameReal = (getAnyValue(rows[0].item, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || lname).toString().trim();
+        if (!qualified[lnameReal]) qualified[lnameReal] = { sum: 0, rows: [] };
+        qualified[lnameReal].sum += acc;
+        qualified[lnameReal].rows.push({ cname: cname, rows: rows, total: acc, instRange: instRange, lastInst: lastInst, perAmt: perAmt, count: rows.length });
     });
     return qualified;
 }
@@ -2374,12 +2382,14 @@ function renderNearEndTable(data) {
         ldata.rows.sort(function(a,b){ return b.total - a.total; }).forEach(function(c) {
             rowNum++;
             grandTotal += c.total;
-            var st = (getAnyValue(c.rows[c.rows.length-1].item, ['สถานะ','status']) || '-').toString();
+            var lastItem = c.rows[c.rows.length-1].item;
+            var realLname = (getAnyValue(lastItem, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || lname).toString().trim();
+            var st = (getAnyValue(lastItem, ['สถานะ','status']) || '-').toString();
             var scls = st.indexOf('เกินกำหนด') >= 0 ? 'status-overdue' : st.indexOf('ยังไม่ถึงกำหนด') >= 0 ? 'status-pending' : 'status-paid';
             var bg = rowNum % 2 === 0 ? 'style="background:var(--bg2)"' : '';
             bodyRows += '<tr ' + bg + '>' +
                 '<td class="col-num">' + rowNum + '</td>' +
-                '<td>' + lname + '</td>' +
+                '<td>' + realLname + '</td>' +
                 '<td style="color:var(--text-dim)">' + c.cname + '</td>' +
                 '<td class="col-center">' + c.lastInst + '</td>' +
                 '<td class="col-center" style="color:var(--accent)">' + c.count + ' งวด</td>' +
