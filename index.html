@@ -49,6 +49,10 @@
                 <i class="fas fa-file-pdf"></i>
                 <span>Daily PDF Report</span>
             </button>
+            <button class="btn-pdf-nav" id="btnLastInstPDF" style="background:#7c3aed;">
+                <i class="fas fa-file-pdf"></i>
+                <span>งวดสุดท้าย ≤200K</span>
+            </button>
             <button class="btn-primary" id="btnRefresh">
                 <i class="fas fa-rotate-right"></i>
                 <span>รีเฟรช</span>
@@ -134,6 +138,10 @@
                         <div class="multi-select" id="filter-leasing" data-placeholder="ทั้งหมด"></div>
                     </div>
                     <div class="filter-group">
+                        <label>Air Code</label>
+                        <div class="multi-select" id="filter-aircode" data-placeholder="ทั้งหมด"></div>
+                    </div>
+                    <div class="filter-group">
                         <label>สถานะ</label>
                         <div class="multi-select" id="filter-status" data-placeholder="ทั้งหมด"></div>
                     </div>
@@ -152,23 +160,6 @@
                             แนวโน้มยอดชำระรายเดือน
                         </div>
                     </div>
-                    <div class="chart-filter-row" id="trend-filter-row">
-                        <div class="chart-filter-group">
-                            <label>ปี</label>
-                            <div class="multi-select chart-sel" id="trend-filter-year" data-placeholder="ทุกปี"></div>
-                        </div>
-                        <div class="chart-filter-group">
-                            <label>ลิสซิ่ง</label>
-                            <div class="multi-select chart-sel" id="trend-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                        </div>
-                        <div class="chart-filter-group">
-                            <label>สถานะ</label>
-                            <div class="multi-select chart-sel" id="trend-filter-status" data-placeholder="ทุกสถานะ"></div>
-                        </div>
-                        <button class="chart-filter-reset" id="trend-filter-reset" title="รีเซ็ต">
-                            <i class="fas fa-arrow-rotate-left"></i>
-                        </button>
-                    </div>
                     <div class="chart-wrapper">
                         <canvas id="monthlyTrendChart"></canvas>
                     </div>
@@ -179,23 +170,6 @@
                             <i class="fas fa-chart-line"></i>
                             ยอดค่างวดตามชื่อรหัส
                         </div>
-                    </div>
-                    <div class="chart-filter-row" id="step-filter-row">
-                        <div class="chart-filter-group">
-                            <label>ปี</label>
-                            <div class="multi-select chart-sel" id="step-filter-year" data-placeholder="ทุกปี"></div>
-                        </div>
-                        <div class="chart-filter-group">
-                            <label>เดือน</label>
-                            <div class="multi-select chart-sel" id="step-filter-month" data-placeholder="ทุกเดือน"></div>
-                        </div>
-                        <div class="chart-filter-group">
-                            <label>สถานะ</label>
-                            <div class="multi-select chart-sel" id="step-filter-status" data-placeholder="ทุกสถานะ"></div>
-                        </div>
-                        <button class="chart-filter-reset" id="step-filter-reset" title="รีเซ็ต">
-                            <i class="fas fa-arrow-rotate-left"></i>
-                        </button>
                     </div>
                     <div class="chart-wrapper">
                         <canvas id="stepLineChart"></canvas>
@@ -221,7 +195,6 @@
                             <div class="multi-select table-sel" id="table-filter-year" data-placeholder="ทุกปี"></div>
                             <div class="multi-select table-sel" id="table-filter-month" data-placeholder="ทุกเดือน"></div>
                             <div class="multi-select table-sel" id="table-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                            <div class="multi-select table-sel" id="table-filter-aircode" data-placeholder="ทุก Air Code"></div>
                             <div class="multi-select table-sel" id="table-filter-status" data-placeholder="ทุกสถานะ"></div>
                         </div>
                         <button class="btn-export-pdf" id="btnExportTablePdf">
