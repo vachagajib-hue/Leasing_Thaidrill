@@ -2323,22 +2323,29 @@ function buildNearEndData(limit) {
         if (rows.length === 0) return;
         rows.reverse();
         var instNums = rows.map(function(r) { return parseInst(getAnyValue(r.item, ['งวดที่','installment','งวด'])); });
-        var minP = instNums[0];
-        var maxP = instNums[instNums.length-1];
-        // แสดงเป็น "งวด 56-60" หรือ "งวด 60/60" ถ้างวดเดียว
+        // rows ถูก reverse แล้ว: [0]=งวดน้อยสุด, [last]=งวดมากสุด (งวดสุดท้ายจริง)
+        var firstP = instNums[0];
+        var lastP  = instNums[instNums.length-1];
         var instRange;
-        if (minP && maxP && minP.num !== maxP.num) {
-            instRange = minP.num + ' – ' + maxP.raw;
-        } else if (maxP) {
-            instRange = maxP.raw;
+        if (firstP && lastP && firstP.num !== lastP.num) {
+            instRange = firstP.num + ' – ' + lastP.raw;
+        } else if (lastP) {
+            instRange = lastP.raw;
         } else { instRange = '-'; }
-        var lastInst = maxP ? maxP.raw : '-';
+        var lastInst = lastP ? lastP.raw : '-';
         var perAmt = rows.length > 0 ? rows[0].amt : 0;
         // ใช้ชื่อลิสซิ่งจริงจาก item แรกของกลุ่มนี้ เป็น group key
         var lnameReal = (getAnyValue(rows[0].item, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || lname).toString().trim();
-        if (!qualified[lnameReal]) qualified[lnameReal] = { sum: 0, rows: [] };
+        if (!qualified[lnameReal]) qualified[lnameReal] = { sum: 0, rows: [], lnameDisplay: lnameReal };
         qualified[lnameReal].sum += acc;
-        qualified[lnameReal].rows.push({ cname: cname, rows: rows, total: acc, instRange: instRange, lastInst: lastInst, perAmt: perAmt, count: rows.length });
+        // เก็บ Air Code จากทุก item ในสัญญา (unique, กรองค่าว่าง)
+        var airSet = {};
+        rows.forEach(function(r) {
+            var a = (getAnyValue(r.item, ['Air Code','airCode','AirCode','air code']) || '').toString().trim();
+            if (a && a !== '-') airSet[a] = 1;
+        });
+        var airCodes = Object.keys(airSet).join(', ') || '-';
+        qualified[lnameReal].rows.push({ cname: cname, rows: rows, total: acc, instRange: instRange, lastInst: lastInst, perAmt: perAmt, count: rows.length, lnameReal: lnameReal, airCodes: airCodes });
     });
     return qualified;
 }
@@ -2374,16 +2381,17 @@ function renderNearEndTable(data) {
 
     leasingEntries.forEach(function(entry, li) {
         var lname = entry[0], ldata = entry[1];
+        var groupLabel = ldata.lnameDisplay || lname;
         bodyRows += '<tr class="near-end-group-row">' +
-            '<td colspan="8" class="near-end-group-cell">' +
-            '<span class="near-end-group-num">' + (li+1) + '.</span> ' + lname +
+            '<td colspan="9" class="near-end-group-cell">' +
+            '<span class="near-end-group-num">' + (li+1) + '.</span> ' + groupLabel +
             ' <span class="near-end-group-meta">· ' + ldata.rows.length + ' สัญญา</span>' +
             '</td></tr>';
         ldata.rows.sort(function(a,b){ return b.total - a.total; }).forEach(function(c) {
             rowNum++;
             grandTotal += c.total;
             var lastItem = c.rows[c.rows.length-1].item;
-            var realLname = (getAnyValue(lastItem, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || lname).toString().trim();
+            var realLname = c.lnameReal || (getAnyValue(lastItem, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || lname).toString().trim();
             var st = (getAnyValue(lastItem, ['สถานะ','status']) || '-').toString();
             var scls = st.indexOf('เกินกำหนด') >= 0 ? 'status-overdue' : st.indexOf('ยังไม่ถึงกำหนด') >= 0 ? 'status-pending' : 'status-paid';
             var bg = rowNum % 2 === 0 ? 'style="background:var(--bg2)"' : '';
@@ -2391,7 +2399,8 @@ function renderNearEndTable(data) {
                 '<td class="col-num">' + rowNum + '</td>' +
                 '<td>' + realLname + '</td>' +
                 '<td style="color:var(--text-dim)">' + c.cname + '</td>' +
-                '<td class="col-center">' + c.lastInst + '</td>' +
+                '<td class="col-center" style="color:var(--accent-teal,#14b8a6);font-size:0.78rem">' + c.airCodes + '</td>' +
+                '<td class="col-center">' + c.instRange + '</td>' +
                 '<td class="col-center" style="color:var(--accent)">' + c.count + ' งวด</td>' +
                 '<td class="col-amount">' + fmtN(c.perAmt) + '</td>' +
                 '<td class="col-amount" style="color:var(--success);font-weight:700">' + fmtN(c.total) + '</td>' +
@@ -2405,18 +2414,19 @@ function renderNearEndTable(data) {
         '</div>' +
         '<table class="payment-table near-end-table">' +
         '<thead><tr>' +
-        '<th style="text-align:center;width:50px">ลำดับ</th>' +
-        '<th style="width:200px">ชื่อลิสซิ่ง</th>' +
-        '<th style="width:150px">เลขสัญญา</th>' +
-        '<th style="text-align:center;width:90px">งวดสุดท้าย</th>' +
-        '<th style="text-align:center;width:80px">จำนวนงวด</th>' +
-        '<th style="text-align:right;width:130px">ค่างวด/เดือน</th>' +
-        '<th style="text-align:right;width:130px">ยอดสะสม</th>' +
-        '<th style="text-align:center;width:120px">สถานะ</th>' +
+        '<th style="text-align:center;width:45px">ลำดับ</th>' +
+        '<th style="width:190px">ชื่อลิสซิ่ง</th>' +
+        '<th style="width:140px">เลขสัญญา</th>' +
+        '<th style="text-align:center;width:100px">Air Code</th>' +
+        '<th style="text-align:center;width:110px">งวดที่เหลือ</th>' +
+        '<th style="text-align:center;width:75px">จำนวนงวด</th>' +
+        '<th style="text-align:right;width:115px">ค่างวด/เดือน</th>' +
+        '<th style="text-align:right;width:115px">ยอดสะสม</th>' +
+        '<th style="text-align:center;width:110px">สถานะ</th>' +
         '</tr></thead>' +
         '<tbody>' + bodyRows + '</tbody>' +
         '<tfoot><tr class="total-row">' +
-        '<td colspan="6" style="text-align:right;font-weight:700;">ยอดรวม (' + totalContracts.toLocaleString() + ' สัญญา)</td>' +
+        '<td colspan="7" style="text-align:right;font-weight:700;">ยอดรวม (' + totalContracts.toLocaleString() + ' สัญญา)</td>' +
         '<td class="col-amount" style="font-weight:700;text-align:right;">' + fmtN(grandTotal) + '</td>' +
         '<td></td>' +
         '</tr></tfoot>' +
@@ -2427,195 +2437,96 @@ function exportNearEndPDF() {
     if (!allData.length) { alert('ยังไม่มีข้อมูล'); return; }
     var sel = document.getElementById('nearEndLimitSelect');
     var limit = sel ? parseInt(sel.value) || 0 : 200000;
-    var limitLabel = limit === 0 ? 'ทั้งหมด' : '\u2264 ' + limit.toLocaleString() + ' \u0e1a\u0e32\u0e17';
+    var limitLabel = limit === 0 ? 'ทั้งหมด' : '\u2264 ' + limit.toLocaleString() + ' บาท';
     var qualified = buildNearEndData(limit);
     var leasingEntries = Object.entries(qualified).sort(function(a,b){ return b[1].sum - a[1].sum; });
     if (leasingEntries.length === 0) { alert('ไม่พบสัญญาในช่วงที่เลือก'); return; }
-
     var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
     var fmtN = function(n) { return n.toLocaleString(undefined, {minimumFractionDigits:2}); };
     var totalContracts = leasingEntries.reduce(function(s,e){ return s + e[1].rows.length; }, 0);
     var grandTotal = leasingEntries.reduce(function(s,e){ return s + e[1].sum; }, 0);
-
     var rowNum = 0;
     var bodyContent = leasingEntries.map(function(entry, li) {
-        var lname = entry[0], ldata = entry[1];
+        var lnameKey = entry[0], ldata = entry[1];
+        var groupLabel = ldata.lnameDisplay || lnameKey;
         var rows = ldata.rows.slice().sort(function(a,b){ return b.total - a.total; }).map(function(c) {
             rowNum++;
             var st = (getAnyValue(c.rows[c.rows.length-1].item, ['สถานะ','status']) || '-').toString();
-            var sc = st.indexOf('\u0e40\u0e01\u0e34\u0e19\u0e01\u0e33\u0e2b\u0e19\u0e14') >= 0 ? 'color:#dc2626' : st.indexOf('\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48') >= 0 ? 'color:#d97706' : 'color:#059669';
-            var bg = rowNum % 2 === 0 ? 'background:#f8fafc' : '';
+            var sc = st.indexOf('เกินกำหนด') >= 0 ? 'color:#dc2626' :
+                     st.indexOf('ทับบัญชี') >= 0 ? 'color:#7c3aed' :
+                     st.indexOf('ยังไม่') >= 0 ? 'color:#d97706' : 'color:#059669';
+            var bg = rowNum % 2 === 0 ? 'background:#fafafa' : '';
             return '<tr style="' + bg + '">' +
                 '<td style="text-align:center;color:#9ca3af">' + rowNum + '</td>' +
-                '<td>' + lname + '</td>' +
-                '<td style="color:#6b7280">' + c.cname + '</td>' +
-                '<td style="text-align:center">' + c.lastInst + '</td>' +
+                '<td>' + (c.lnameReal || groupLabel) + '</td>' +
+                '<td style="color:#374151">' + c.cname + '</td>' +
+                '<td style="text-align:center;color:#0d9488;font-weight:700">' + (c.airCodes || '-') + '</td>' +
+                '<td style="text-align:center">' + c.instRange + '</td>' +
                 '<td style="text-align:center;color:#1d4ed8">' + c.count + ' งวด</td>' +
                 '<td style="text-align:right">' + fmtN(c.perAmt) + '</td>' +
                 '<td style="text-align:right;font-weight:700;color:#059669">' + fmtN(c.total) + '</td>' +
-                '<td style="text-align:center;font-weight:700;font-size:9px;' + sc + '">' + st + '</td>' +
+                '<td style="text-align:center;font-weight:700;font-size:8px;' + sc + '">' + st + '</td>' +
                 '</tr>';
         }).join('');
-        return '<section class="cat-section">' +
-            '<div class="cat-section-head">' +
-            '<span class="cat-section-num">' + (li+1) + '.</span>' +
-            '<span class="cat-section-name">' + lname + '</span>' +
-            '<span class="cat-section-meta">' + ldata.rows.length + ' \u0e2a\u0e31\u0e0d\u0e0d\u0e32 &nbsp;\u00b7&nbsp; <b>' + fmtN(ldata.sum) + '</b></span>' +
-            '</div>' +
+        var subtotal = '<tr style="background:#fffbeb;border-top:1px solid #fde68a">' +
+            '<td colspan="7" style="text-align:right;font-size:8px;color:#92400e">รวม ' + ldata.rows.length + ' สัญญา</td>' +
+            '<td style="text-align:right;font-weight:700;color:#b45309">' + fmtN(ldata.sum) + '</td>' +
+            '<td></td></tr>';
+        return '<section class="cs">' +
+            '<div class="csh"><span class="cn">' + (li+1) + '.</span>' +
+            '<span class="cnm">' + groupLabel + '</span>' +
+            '<span class="cm">' + ldata.rows.length + ' สัญญา &nbsp;·&nbsp; <b>' + fmtN(ldata.sum) + '</b></span></div>' +
             '<table><colgroup>' +
-            '<col style="width:5%"><col style="width:20%"><col style="width:15%">' +
-            '<col style="width:10%"><col style="width:9%"><col style="width:13%">' +
-            '<col style="width:13%"><col style="width:15%">' +
-            '</colgroup>' +
-            '<thead><tr>' +
-            '<th>#</th><th style="text-align:left">\u0e0a\u0e37\u0e48\u0e2d\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07</th>' +
-            '<th style="text-align:left">\u0e40\u0e25\u0e02\u0e2a\u0e31\u0e0d\u0e0d\u0e32</th>' +
-            '<th>\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22</th>' +
-            '<th>\u0e08\u0e33\u0e19\u0e27\u0e19\u0e07\u0e27\u0e14</th>' +
-            '<th style="text-align:right">\u0e04\u0e48\u0e32\u0e07\u0e27\u0e14/\u0e40\u0e14\u0e37\u0e2d\u0e19</th>' +
-            '<th style="text-align:right">\u0e22\u0e2d\u0e14\u0e2a\u0e30\u0e2a\u0e21</th>' +
-            '<th>\u0e2a\u0e16\u0e32\u0e19\u0e30</th>' +
-            '</tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-            '</section>';
+            '<col style="width:4%"><col style="width:18%"><col style="width:13%">' +
+            '<col style="width:9%"><col style="width:11%"><col style="width:8%">' +
+            '<col style="width:12%"><col style="width:12%"><col style="width:13%">' +
+            '</colgroup><thead><tr>' +
+            '<th>#</th><th style="text-align:left">ชื่อลิสซิ่ง</th>' +
+            '<th style="text-align:left">เลขสัญญา</th>' +
+            '<th>Air Code</th><th>งวดที่เหลือ</th><th>จำนวน</th>' +
+            '<th style="text-align:right">ค่างวด/เดือน</th>' +
+            '<th style="text-align:right">ยอดสะสม</th><th>สถานะ</th>' +
+            '</tr></thead><tbody>' + rows + subtotal + '</tbody></table></section>';
     }).join('');
-
-    var win = window.open('', '_blank', 'width=900,height=1200');
-    if (!win) { alert('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e2d\u0e19\u0e38\u0e0d\u0e32\u0e15 popup'); return; }
-
-    var css = '@page{size:A4 portrait;margin:10mm}' +
-        '@media print{.toolbar{display:none!important}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead tr{background:#f59e0b!important}thead th{color:#fff!important}thead{display:table-header-group}tr{page-break-inside:avoid}.cat-section{page-break-inside:auto}}' +
+    var win = window.open('', '_blank', 'width=1000,height=1200');
+    if (!win) { alert('กรุณาอนุญาต popup'); return; }
+    var css = '@page{size:A4 landscape;margin:8mm 10mm}' +
+        '@media print{.toolbar{display:none!important}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead tr{background:#f59e0b!important}thead th{color:#fff!important}thead{display:table-header-group}tr{page-break-inside:avoid}.cs{page-break-inside:auto}.csh{page-break-after:avoid}}' +
         '*{box-sizing:border-box;margin:0;padding:0}' +
         'body{font-family:"Sarabun",sans-serif;background:#e5e7eb;color:#111827}' +
-        '.toolbar{position:sticky;top:0;z-index:10;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 20px}' +
-        '.toolbar-title{font-size:13px;color:#94a3b8}.btn-print{background:#f59e0b;color:#fff;border:none;padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}' +
-        '.doc{padding:14px;max-width:210mm;margin:0 auto;background:#fff}' +
-        '.doc-meta{font-size:10px;color:#6b7280;margin-bottom:12px}.doc-meta b{color:#0f172a}' +
-        'table{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed;margin-bottom:8px}' +
-        'th,td{border:1px solid #cbd5e1;padding:4px 5px;word-wrap:break-word}' +
-        'th{background:#f59e0b;color:#fff;text-align:center;border-color:#d97706;font-weight:700;font-size:9px}' +
-        'td{color:#111827;vertical-align:middle}' +
-        'tbody tr:nth-child(even) td{background:#f8fafc}' +
-        '.cat-section{margin-bottom:14px;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden}' +
-        '.cat-section-head{background:#fffbeb;padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fde68a;font-size:10px}' +
-        '.cat-section-num{color:#6b7280;font-weight:700}.cat-section-name{color:#0f172a;font-weight:700;flex:1}' +
-        '.cat-section-meta{color:#b45309;font-weight:600;white-space:nowrap}.cat-section-meta b{color:#0f172a}' +
-        '.cat-section table{margin-bottom:0;border:none}.cat-section table th{background:#f59e0b}' +
-        '.grand-total{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 12px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px}';
-
+        '.toolbar{position:sticky;top:0;z-index:10;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:8px 20px}' +
+        '.toolbar-title{font-size:12px;color:#94a3b8}' +
+        '.btn-print{background:#f59e0b;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}' +
+        '.doc{padding:12px 14px;background:#fff}' +
+        '.doc-meta{font-size:9px;color:#6b7280;margin-bottom:10px}.doc-meta b{color:#0f172a}' +
+        'table{width:100%;border-collapse:collapse;font-size:8.5px;table-layout:fixed;margin-bottom:0}' +
+        'th,td{border:1px solid #e2e8f0;padding:3px 4px;word-wrap:break-word;vertical-align:middle}' +
+        'th{background:#f59e0b;color:#fff;text-align:center;border-color:#d97706;font-weight:700;font-size:8.5px;white-space:nowrap}' +
+        'td{color:#111827}tbody tr:nth-child(even) td{background:#fafafa}' +
+        '.cs{margin-bottom:10px;border:1px solid #e2e8f0;border-radius:4px;overflow:hidden}' +
+        '.csh{background:#fffbeb;padding:5px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fde68a;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+        '.cn{color:#92400e;font-weight:700;min-width:18px;font-size:10px}' +
+        '.cnm{color:#0f172a;font-weight:700;flex:1;font-size:10px}' +
+        '.cm{color:#b45309;font-weight:600;white-space:nowrap;font-size:9px}.cm b{color:#0f172a}' +
+        '.cs table{margin-bottom:0;border:none}.cs table th{background:#f59e0b}' +
+        '.gt{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center}';
     win.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">' +
-        '<title>\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14 \u2014 ' + dateStr + '</title>' +
+        '<title>สัญญาใกล้หมด — ' + dateStr + '</title>' +
         '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
         '<style>' + css + '</style></head><body>' +
-        '<div class="toolbar"><span class="toolbar-title">\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14 (' + limitLabel + ') \u2014 ' + dateStr + '</span>' +
-        '<button class="btn-print" onclick="window.print()">\ud83d\udda8 \u0e1e\u0e34\u0e21\u0e1e\u0e4c / \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 PDF</button></div>' +
+        '<div class="toolbar"><span class="toolbar-title">สัญญาใกล้หมดลิสซิ่ง ThaiDrill &nbsp;·&nbsp; ' + limitLabel + ' &nbsp;·&nbsp; ' + dateStr + '</span>' +
+        '<button class="btn-print" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button></div>' +
         '<div class="doc">' +
-        buildThaiDrillHeader('\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07 <span style="color:#f59e0b;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
-        '<div class="doc-meta">\u0e0a\u0e48\u0e27\u0e07\u0e22\u0e2d\u0e14\u0e04\u0e07\u0e40\u0e2b\u0e25\u0e37\u0e2d: <b>' + limitLabel + '</b> &nbsp;\u00b7&nbsp; \u0e1e\u0e1a <b>' + totalContracts + ' \u0e2a\u0e31\u0e0d\u0e0d\u0e32</b> \u00b7 \u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19 <b>' + fmtN(grandTotal) + '</b></div>' +
+        buildThaiDrillHeader('สัญญาใกล้หมดลิสซิ่ง <span style="color:#f59e0b;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
+        '<div class="doc-meta">ช่วงยอด: <b style="color:#b45309">' + limitLabel + '</b>' +
+        ' &nbsp;·&nbsp; พบ <b>' + leasingEntries.length + ' ลิสซิ่ง</b> &nbsp;·&nbsp; <b>' + totalContracts + ' สัญญา</b>' +
+        ' &nbsp;·&nbsp; ยอดรวม <b>' + fmtN(grandTotal) + ' บาท</b></div>' +
         bodyContent +
-        '<div class="grand-total"><span style="font-weight:700;color:#92400e">\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19</span>' +
-        '<span style="font-size:13px;font-weight:700;color:#b45309">' + fmtN(grandTotal) + '</span></div>' +
-        '<div style="margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;">' +
-        '<span>\u0e23\u0e30\u0e1a\u0e1a\u0e10\u0e32\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07 \u0e23\u0e16\u0e40\u0e08\u0e32\u0e30\u0e44\u0e17\u0e22 2026</span>' +
-        '<span>\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e19\u0e35\u0e49\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e42\u0e14\u0e22\u0e23\u0e30\u0e1a\u0e1a\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34 \u2014 \u0e2b\u0e49\u0e32\u0e21\u0e41\u0e01\u0e49\u0e44\u0e02</span>' +
+        '<div class="gt"><span style="font-weight:700;color:#92400e;font-size:11px">ยอดรวมทั้งสิ้น (' + totalContracts + ' สัญญา)</span>' +
+        '<span style="font-size:14px;font-weight:700;color:#b45309">' + fmtN(grandTotal) + ' บาท</span></div>' +
+        '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:8px;color:#9ca3af;">' +
+        '<span>ระบบฐานข้อมูลลิสซิ่ง รถเจาะไทย 2026</span>' +
+        '<span>เอกสารนี้สร้างโดยระบบอัตโนมัติ — ห้ามแก้ไข</span>' +
         '</div></div></body></html>');
-    win.document.close();
-}
-
-function exportCheckReturnPDF() {
-    const table = document.querySelector('.check-return-table');
-    if (!table) { alert('ไม่พบข้อมูลค่าธรรมเนียมเช็คคืน'); return; }
-
-    const win = window.open('', '_blank', 'width=900,height=1200');
-    if (!win) { alert('กรุณาอนุญาต popup'); return; }
-
-    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
-
-    const clone = table.cloneNode(true);
-    clone.querySelectorAll('th, td').forEach(el => {
-        el.removeAttribute('width');
-        el.style.width = '';
-    });
-    clone.querySelectorAll('button').forEach(b => b.remove());
-
-    const subtitleEl = document.getElementById('checkReturnSubtitle');
-    const subtitleText = subtitleEl ? subtitleEl.textContent : '';
-
-    win.document.write(`<!DOCTYPE html><html lang="th"><head>
-        <meta charset="UTF-8"><title>${title}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-        <style>
-            @page { size: A4 portrait; margin: 10mm; }
-            @media print {
-                .toolbar { display:none!important; }
-                body { background:#fff; }
-                thead tr { background:#1d4ed8!important; }
-                thead th { color:#fff!important; }
-                body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-                thead { display: table-header-group; }
-                tr { page-break-inside: avoid; }
-                tfoot tr td { background:#fef2f2!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-            }
-            * { box-sizing:border-box; margin:0; padding:0; }
-            body { font-family:'Sarabun',sans-serif; background:#e5e7eb; }
-            .toolbar { position:sticky; top:0; background:#1e293b; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:10px 20px; z-index:10; }
-            .toolbar-title { font-size:13px; color:#94a3b8; }
-            .btn-print { background:#1d4ed8; color:#fff; border:none; padding:8px 18px; border-radius:7px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
-            .body { padding:14px; max-width:210mm; margin:0 auto; background:#fff; }
-            table { width:100%; border-collapse:collapse; font-size:9px; table-layout:fixed; }
-            th, td { border:1px solid #cbd5e1; padding:4px 5px; word-wrap:break-word; overflow-wrap:break-word; }
-            th { background:#1d4ed8; color:#fff; text-align:center; border-color:#1e3a8a; font-weight:700; font-size:9px; }
-            td { color:#111827; vertical-align:middle; }
-            tbody tr:nth-child(even) td { background:#f8fafc; }
-            tfoot tr td { background:#fef2f2!important; font-size:10px; border-top:2px solid #ef4444; font-weight:700; }
-            tfoot { display: table-row-group; }
-            td:nth-child(1), th:nth-child(1),
-            td:nth-child(2), th:nth-child(2),
-            td:nth-child(5), th:nth-child(5),
-            td:nth-child(6), th:nth-child(6),
-            td:nth-child(7), th:nth-child(7) { text-align:center; }
-            td:nth-child(8), th:nth-child(8) { text-align:right; }
-            td:nth-child(9), th:nth-child(9) { text-align:right; }
-            td:nth-child(8) { color:#111827; font-weight:700; }
-            td:nth-child(9) { color:#dc2626; font-weight:700; }
-        </style></head><body>
-        <div class="toolbar">
-            <span class="toolbar-title">${title}</span>
-            <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
-        </div>
-        <div class="body">
-        ${buildThaiDrillHeader(`ค่าธรรมเนียมเช็คคืน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span>`, subtitleText)}
-        <table>
-            <colgroup>
-                <col style="width:5%"><col style="width:9%"><col style="width:23%"><col style="width:12%">
-                <col style="width:6%"><col style="width:12%"><col style="width:11%"><col style="width:11%">
-                <col style="width:11%">
-            </colgroup>
-            ${clone.innerHTML}
-        </table>
-        
-        <div style="margin-top:40px; display:flex; justify-content:space-between; text-align:center; font-size:12px; padding:0 30px;">
-            <div style="width:28%;">
-                <div style="margin-bottom:40px; font-weight:700;">ผู้จัดทำ</div>
-                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
-                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
-            </div>
-            <div style="width:28%;">
-                <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (การเงิน)</div>
-                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
-                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
-            </div>
-            <div style="width:28%;">
-                <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (บัญชี)</div>
-                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
-                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
-                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
-            </div>
-        </div>
-
-        </div>
-    </body></html>`);
     win.document.close();
 }
