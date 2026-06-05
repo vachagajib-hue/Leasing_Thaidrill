@@ -2511,13 +2511,13 @@ function exportNearEndPDF() {
         '.cs table{margin-bottom:0;border:none}.cs table th{background:#f59e0b}' +
         '.gt{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center}';
     win.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">' +
-        '<title>สัญญาใกล้หมด — ' + dateStr + '</title>' +
+        '<title>สัญญาใกล้จบ — ' + dateStr + '</title>' +
         '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
         '<style>' + css + '</style></head><body>' +
-        '<div class="toolbar"><span class="toolbar-title">สัญญาใกล้หมดลิสซิ่ง ThaiDrill &nbsp;·&nbsp; ' + limitLabel + ' &nbsp;·&nbsp; ' + dateStr + '</span>' +
+        '<div class="toolbar"><span class="toolbar-title">สัญญาใกล้จบลิสซิ่ง ThaiDrill &nbsp;·&nbsp; ' + limitLabel + ' &nbsp;·&nbsp; ' + dateStr + '</span>' +
         '<button class="btn-print" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button></div>' +
         '<div class="doc">' +
-        buildThaiDrillHeader('สัญญาใกล้หมดลิสซิ่ง <span style="color:#f59e0b;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
+        buildThaiDrillHeader('สัญญาใกล้จบลิสซิ่ง <span style="color:#f59e0b;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
         '<div class="doc-meta">ช่วงยอด: <b style="color:#b45309">' + limitLabel + '</b>' +
         ' &nbsp;·&nbsp; พบ <b>' + leasingEntries.length + ' ลิสซิ่ง</b> &nbsp;·&nbsp; <b>' + totalContracts + ' สัญญา</b>' +
         ' &nbsp;·&nbsp; ยอดรวม <b>' + fmtN(grandTotal) + ' บาท</b></div>' +
@@ -2528,5 +2528,103 @@ function exportNearEndPDF() {
         '<span>ระบบฐานข้อมูลลิสซิ่ง รถเจาะไทย 2026</span>' +
         '<span>เอกสารนี้สร้างโดยระบบอัตโนมัติ — ห้ามแก้ไข</span>' +
         '</div></div></body></html>');
+    win.document.close();
+}
+
+function exportCheckReturnPDF() {
+    const table = document.querySelector('.check-return-table');
+    if (!table) { alert('ไม่พบข้อมูลค่าธรรมเนียมเช็คคืน'); return; }
+
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) { alert('กรุณาอนุญาต popup'); return; }
+
+    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
+
+    const clone = table.cloneNode(true);
+    clone.querySelectorAll('th, td').forEach(el => {
+        el.removeAttribute('width');
+        el.style.width = '';
+    });
+    clone.querySelectorAll('button').forEach(b => b.remove());
+
+    const subtitleEl = document.getElementById('checkReturnSubtitle');
+    const subtitleText = subtitleEl ? subtitleEl.textContent : '';
+
+    win.document.write(`<!DOCTYPE html><html lang="th"><head>
+        <meta charset="UTF-8"><title>${title}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+            @page { size: A4 portrait; margin: 10mm; }
+            @media print {
+                .toolbar { display:none!important; }
+                body { background:#fff; }
+                thead tr { background:#1d4ed8!important; }
+                thead th { color:#fff!important; }
+                body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+                thead { display: table-header-group; }
+                tr { page-break-inside: avoid; }
+                tfoot tr td { background:#fef2f2!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+            }
+            * { box-sizing:border-box; margin:0; padding:0; }
+            body { font-family:'Sarabun',sans-serif; background:#e5e7eb; }
+            .toolbar { position:sticky; top:0; background:#1e293b; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:10px 20px; z-index:10; }
+            .toolbar-title { font-size:13px; color:#94a3b8; }
+            .btn-print { background:#1d4ed8; color:#fff; border:none; padding:8px 18px; border-radius:7px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+            .body { padding:14px; max-width:210mm; margin:0 auto; background:#fff; }
+            table { width:100%; border-collapse:collapse; font-size:9px; table-layout:fixed; }
+            th, td { border:1px solid #cbd5e1; padding:4px 5px; word-wrap:break-word; overflow-wrap:break-word; }
+            th { background:#1d4ed8; color:#fff; text-align:center; border-color:#1e3a8a; font-weight:700; font-size:9px; }
+            td { color:#111827; vertical-align:middle; }
+            tbody tr:nth-child(even) td { background:#f8fafc; }
+            tfoot tr td { background:#fef2f2!important; font-size:10px; border-top:2px solid #ef4444; font-weight:700; }
+            tfoot { display: table-row-group; }
+            td:nth-child(1), th:nth-child(1),
+            td:nth-child(2), th:nth-child(2),
+            td:nth-child(5), th:nth-child(5),
+            td:nth-child(6), th:nth-child(6),
+            td:nth-child(7), th:nth-child(7) { text-align:center; }
+            td:nth-child(8), th:nth-child(8) { text-align:right; }
+            td:nth-child(9), th:nth-child(9) { text-align:right; }
+            td:nth-child(8) { color:#111827; font-weight:700; }
+            td:nth-child(9) { color:#dc2626; font-weight:700; }
+        </style></head><body>
+        <div class="toolbar">
+            <span class="toolbar-title">${title}</span>
+            <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
+        </div>
+        <div class="body">
+        ${buildThaiDrillHeader(`ค่าธรรมเนียมเช็คคืน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span>`, subtitleText)}
+        <table>
+            <colgroup>
+                <col style="width:5%"><col style="width:9%"><col style="width:23%"><col style="width:12%">
+                <col style="width:6%"><col style="width:12%"><col style="width:11%"><col style="width:11%">
+                <col style="width:11%">
+            </colgroup>
+            ${clone.innerHTML}
+        </table>
+        
+        <div style="margin-top:40px; display:flex; justify-content:space-between; text-align:center; font-size:12px; padding:0 30px;">
+            <div style="width:28%;">
+                <div style="margin-bottom:40px; font-weight:700;">ผู้จัดทำ</div>
+                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
+                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
+            </div>
+            <div style="width:28%;">
+                <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (การเงิน)</div>
+                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
+                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
+            </div>
+            <div style="width:28%;">
+                <div style="margin-bottom:40px; font-weight:700;">ผู้ตรวจสอบ (บัญชี)</div>
+                <div style="border-bottom:1px dashed #94a3b8; width:80%; margin:0 auto 10px;"></div>
+                <div style="color:#64748b;white-space:nowrap;">( ....................................................... )</div>
+                <div style="margin-top:8px; color:#64748b;">วันที่ ....... / ....... / .......</div>
+            </div>
+        </div>
+
+        </div>
+    </body></html>`);
     win.document.close();
 }
