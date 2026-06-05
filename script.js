@@ -439,10 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExportTablePdf = document.getElementById('btnExportTablePdf');
     if (btnExportTablePdf) btnExportTablePdf.addEventListener('click', exportTablePDF);
 
-    // PDF งวดสุดท้าย ≤200K
-    const btnLastInstPDF = document.getElementById('btnLastInstPDF');
-    if (btnLastInstPDF) btnLastInstPDF.addEventListener('click', exportLastInstallmentsPDF);
-
     // Check Return section listeners
     const debouncedRenderCR = debounce(() => renderCheckReturnTable(checkReturnData), 220);
     const crFilterYear = document.getElementById('cr-filter-year');
@@ -457,6 +453,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (crSearch) crSearch.addEventListener('input', debounce(() => renderCheckReturnTable(checkReturnData), 280));
     const btnExportCheckReturnPdf = document.getElementById('btnExportCheckReturnPdf');
     if (btnExportCheckReturnPdf) btnExportCheckReturnPdf.addEventListener('click', exportCheckReturnPDF);
+
+    // Near End Installment section
+    const nearEndLimitSelect = document.getElementById('nearEndLimitSelect');
+    if (nearEndLimitSelect) nearEndLimitSelect.addEventListener('change', () => renderNearEndTable(allData));
+    const btnExportNearEndPdf = document.getElementById('btnExportNearEndPdf');
+    if (btnExportNearEndPdf) btnExportNearEndPdf.addEventListener('click', exportNearEndPDF);
 
     // Status KPI detail buttons
     const btnOverdueDetail = document.getElementById('btnOverdueDetail');
@@ -500,6 +502,7 @@ function applyDataset(data, fromCache) {
     buildCheckReturnFromPaymentLog();
     initCheckReturnFilters(checkReturnData);
     renderCheckReturnTable(checkReturnData);
+    renderNearEndTable(allData);
     const lastUpdated = document.getElementById('lastUpdated');
     if (lastUpdated) {
         const now = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -1300,174 +1303,6 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
             ${bodyContent}
         </div>
         </body></html>`);
-    win.document.close();
-}
-
-function exportLastInstallmentsPDF() {
-    if (!allData.length) { alert('ยังไม่มีข้อมูล'); return; }
-
-    // จัดกลุ่มตามสัญญา
-    var contractMap = {};
-    allData.forEach(function(item) {
-        var lname = (getAnyValue(item, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || '(ไม่ระบุ)').toString().trim();
-        var cname = (getAnyValue(item, ['เลขสัญญา','contract','สัญญา']) || '(ไม่ระบุ)').toString().trim();
-        var key = lname + '|||' + cname;
-        if (!contractMap[key]) contractMap[key] = { lname: lname, cname: cname, items: [] };
-        contractMap[key].items.push(item);
-    });
-
-    var LIMIT = 200000;
-    var qualified = {};
-
-    Object.values(contractMap).forEach(function(grp) {
-        var lname = grp.lname, cname = grp.cname, items = grp.items;
-        function parseInst(v) {
-            var s = String(v || '').trim();
-            var m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
-            return m ? { num: parseInt(m[1]), total: parseInt(m[2]), raw: s } : { num: 0, total: 0, raw: s };
-        }
-        var sorted = items.slice().sort(function(a, b) {
-            var ia = parseInst(getAnyValue(a, ['งวดที่','installment','งวด']));
-            var ib = parseInst(getAnyValue(b, ['งวดที่','installment','งวด']));
-            return (ib.num - ia.num) || (ib.total - ia.total);
-        });
-        var acc = 0, rows = [];
-        for (var i = 0; i < sorted.length; i++) {
-            var amt = cleanNumber(getAnyValue(sorted[i], ['ค่างวดประจำ','amount','ยอดเงิน','ยอดชำระ','ยอด']));
-            if (acc + amt > LIMIT) break;
-            acc += amt;
-            rows.push({ item: sorted[i], amt: amt, acc: acc });
-        }
-        if (rows.length === 0) return;
-        rows.reverse();
-        var instNums = rows.map(function(r) { return parseInst(getAnyValue(r.item, ['งวดที่','installment','งวด'])); });
-        var minInst = instNums[0] ? instNums[0].raw : '-';
-        var maxInst = instNums[instNums.length-1] ? instNums[instNums.length-1].raw : '-';
-        var instRange = minInst === maxInst ? minInst : (minInst + ' – ' + maxInst);
-        if (!qualified[lname]) qualified[lname] = { sum: 0, contracts: [] };
-        qualified[lname].sum += acc;
-        qualified[lname].contracts.push({ cname: cname, rows: rows, total: acc, instRange: instRange });
-    });
-
-    if (Object.keys(qualified).length === 0) {
-        alert('ไม่พบสัญญาที่มียอดสะสมงวดสุดท้าย ≤ 200,000 บาท');
-        return;
-    }
-
-    var dateStr = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
-    function fmtAmt(n) { return n.toLocaleString(undefined, { minimumFractionDigits: 2 }); }
-    var leasingEntries = Object.entries(qualified).sort(function(a, b) { return b[1].sum - a[1].sum; });
-    var totalAll = 0;
-    leasingEntries.forEach(function(e) { totalAll += e[1].sum; });
-    var totalContracts = Object.values(qualified).reduce(function(s, v) { return s + v.contracts.length; }, 0);
-
-    var bodyContent = leasingEntries.map(function(entry, li) {
-        var lname = entry[0], ldata = entry[1];
-        var contractSections = ldata.contracts.slice().sort(function(a,b){ return b.total - a.total; }).map(function(c, ci) {
-            var itemRowsHtml = c.rows.map(function(r, ii) {
-                var d = parseDueDate(getAnyValue(r.item, ['กำหนดชำระ','dueDate']));
-                var dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
-                var air = getAnyValue(r.item, ['Air Code','airCode','AirCode','air code']) || '-';
-                var inst = getAnyValue(r.item, ['งวดที่','installment','งวด']) || '-';
-                var st = (getAnyValue(r.item, ['สถานะ','status']) || '-').toString();
-                var sc = st.indexOf('เกินกำหนด') >= 0 ? 'color:#dc2626' : st.indexOf('ยังไม่ถึงกำหนด') >= 0 ? 'color:#d97706' : 'color:#059669';
-                var bg = ii%2===1 ? 'background:#f8fafc' : '';
-                return '<tr style="' + bg + '">' +
-                    '<td style="padding:3px 5px;text-align:center;color:#9ca3af">' + (ii+1) + '</td>' +
-                    '<td style="padding:3px 5px;text-align:center;white-space:nowrap">' + dateDisp + '</td>' +
-                    '<td style="padding:3px 5px;text-align:center;color:#6b7280">' + air + '</td>' +
-                    '<td style="padding:3px 5px;text-align:center">' + inst + '</td>' +
-                    '<td style="padding:3px 5px;text-align:right;font-weight:700;color:#1d4ed8">' + fmtAmt(r.amt) + '</td>' +
-                    '<td style="padding:3px 5px;text-align:right;color:#059669;font-weight:700">' + fmtAmt(r.acc) + '</td>' +
-                    '<td style="padding:3px 5px;text-align:center;font-weight:700;font-size:9px;' + sc + '">' + st + '</td>' +
-                    '</tr>';
-            }).join('');
-            var subtotalRow = '<tr style="background:#eff6ff;border-top:1px solid #bfdbfe">' +
-                '<td colspan="4" style="padding:3px 5px;text-align:right;font-size:9px;color:#6b7280">รวมสัญญานี้</td>' +
-                '<td style="padding:3px 5px;text-align:right;font-weight:700;color:#1d4ed8">' + fmtAmt(c.total) + '</td>' +
-                '<td colspan="2"></td></tr>';
-            return '<div class="ctr-section">' +
-                '<div class="ctr-head">' +
-                '<span class="ctr-num">' + (li+1) + '.' + (ci+1) + '</span>' +
-                '<span class="ctr-name">' + c.cname + '</span>' +
-                '<span class="ctr-meta">' + c.rows.length + ' งวด &nbsp;·&nbsp; ' + c.instRange + ' &nbsp;·&nbsp; <b>' + fmtAmt(c.total) + '</b></span>' +
-                '</div>' +
-                '<table><colgroup><col style="width:5%"><col style="width:13%"><col style="width:12%">' +
-                '<col style="width:9%"><col style="width:14%"><col style="width:14%"><col style="width:12%"></colgroup>' +
-                '<thead><tr><th>#</th><th>กำหนดชำระ</th><th>Air Code</th>' +
-                '<th>งวดที่</th><th style="text-align:right">ค่างวด</th>' +
-                '<th style="text-align:right">ยอดสะสม</th><th>สถานะ</th></tr></thead>' +
-                '<tbody>' + itemRowsHtml + subtotalRow + '</tbody></table></div>';
-        }).join('');
-        return '<section class="cat-section">' +
-            '<div class="cat-section-head">' +
-            '<span class="cat-section-num">' + (li+1) + '.</span>' +
-            '<span class="cat-section-name">' + lname + '</span>' +
-            '<span class="cat-section-meta">' + ldata.contracts.length + ' สัญญา &nbsp;·&nbsp; <b>' + fmtAmt(ldata.sum) + '</b></span>' +
-            '</div>' + contractSections + '</section>';
-    }).join('');
-
-    var win = window.open('', '_blank', 'width=900,height=1200');
-    if (!win) { alert('กรุณาอนุญาต popup'); return; }
-
-    var css = [
-        '@page{size:A4 portrait;margin:10mm}',
-        '@media print{.toolbar{display:none!important}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead tr{background:#7c3aed!important}thead th{color:#fff!important}thead{display:table-header-group}tr{page-break-inside:avoid}.cat-section{page-break-inside:auto}}',
-        '*{box-sizing:border-box;margin:0;padding:0}',
-        'body{font-family:"Sarabun",sans-serif;background:#e5e7eb;color:#111827}',
-        '.toolbar{position:sticky;top:0;z-index:10;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 20px}',
-        '.toolbar-title{font-size:13px;color:#94a3b8}',
-        '.btn-print{background:#7c3aed;color:#fff;border:none;padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}',
-        '.doc{padding:14px;max-width:210mm;margin:0 auto;background:#fff}',
-        '.doc-meta{font-size:10px;color:#6b7280;margin-bottom:12px}',
-        '.doc-meta b{color:#0f172a}',
-        'table{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed;margin-bottom:8px}',
-        'th,td{border:1px solid #cbd5e1;padding:4px 5px;word-wrap:break-word}',
-        'th{background:#7c3aed;color:#fff;text-align:center;border-color:#6d28d9;font-weight:700;font-size:9px}',
-        'td{color:#111827;vertical-align:middle}',
-        'tbody tr:nth-child(even) td{background:#f8fafc}',
-        '.cat-section{margin-bottom:14px;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden}',
-        '.cat-section-head{background:#f5f3ff;padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #ddd6fe;font-size:10px}',
-        '.cat-section-num{color:#6b7280;font-weight:700}',
-        '.cat-section-name{color:#0f172a;font-weight:700;flex:1}',
-        '.cat-section-meta{color:#7c3aed;font-weight:600;white-space:nowrap}',
-        '.cat-section-meta b{color:#0f172a}',
-        '.cat-section table{margin-bottom:0;border:none}',
-        '.cat-section table th{background:#7c3aed}',
-        '.ctr-section{margin:6px 8px;border:1px solid #ddd6fe;border-radius:3px;overflow:hidden;page-break-inside:avoid}',
-        '.ctr-head{background:#ede9fe;padding:4px 8px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #ddd6fe;font-size:9px}',
-        '.ctr-num{color:#7c3aed;font-weight:700;min-width:24px}',
-        '.ctr-name{color:#4c1d95;font-weight:700;flex:1}',
-        '.ctr-meta{color:#7c3aed;white-space:nowrap}',
-        '.ctr-section table{font-size:9px;margin-bottom:0;border:none}',
-        '.ctr-section table th{background:#7c3aed;font-size:9px;padding:3px 5px}',
-        '.ctr-section table td{padding:3px 5px}',
-        '.grand-total{background:#f5f3ff;border:1px solid #ddd6fe;border-radius:4px;padding:8px 12px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px}'
-    ].join('');
-
-    win.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">' +
-        '<title>' + '\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22 \u2264200K \u2014 ' + dateStr + '</title>' +
-        '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
-        '<style>' + css + '</style></head><body>' +
-        '<div class="toolbar">' +
-        '<span class="toolbar-title">' + '\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22 \u2264200K \u2014 ' + dateStr + '</span>' +
-        '<button class="btn-print" onclick="window.print()">' + '\ud83d\udda8 \u0e1e\u0e34\u0e21\u0e1e\u0e4c / \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 PDF</button>' +
-        '</div>' +
-        '<div class="doc">' +
-        buildThaiDrillHeader('\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22 \u2264 200,000 \u0e1a\u0e32\u0e17 <span style="color:#7c3aed;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
-        '<div class="doc-meta">' +
-        '\u0e04\u0e33\u0e19\u0e27\u0e13\u0e08\u0e32\u0e01\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22\u0e22\u0e49\u0e2d\u0e19\u0e02\u0e36\u0e49\u0e19 \u0e08\u0e19\u0e22\u0e2d\u0e14\u0e2a\u0e30\u0e2a\u0e21\u0e16\u0e36\u0e07 200,000 \u0e1a\u0e32\u0e17 \u00b7 \u0e41\u0e22\u0e01\u0e15\u0e32\u0e21\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07<br>' +
-        '\u0e1e\u0e1a <b>' + leasingEntries.length + ' \u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07</b> \u00b7 <b>' + totalContracts + ' \u0e2a\u0e31\u0e0d\u0e0d\u0e32</b> \u00b7 \u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19 <b>' + fmtAmt(totalAll) + '</b>' +
-        '</div>' +
-        bodyContent +
-        '<div class="grand-total">' +
-        '<span style="font-weight:700;color:#4c1d95">\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19</span>' +
-        '<span style="font-size:13px;font-weight:700;color:#7c3aed">' + fmtAmt(totalAll) + '</span>' +
-        '</div>' +
-        '<div style="margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;">' +
-        '<span>\u0e23\u0e30\u0e1a\u0e1a\u0e10\u0e32\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07 \u0e23\u0e16\u0e40\u0e08\u0e32\u0e30\u0e44\u0e17\u0e22 2026</span>' +
-        '<span>\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e19\u0e35\u0e49\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e42\u0e14\u0e22\u0e23\u0e30\u0e1a\u0e1a\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34 \u2014 \u0e2b\u0e49\u0e32\u0e21\u0e41\u0e01\u0e49\u0e44\u0e02</span>' +
-        '</div></div></body></html>');
     win.document.close();
 }
 
@@ -2448,6 +2283,233 @@ function renderCheckReturnTable(data) {
         <tbody>${rows}</tbody>
         ${tfoot}
     </table>`;
+}
+
+// ===== NEAR END INSTALLMENT SECTION =====
+
+function buildNearEndData(limit) {
+    // limit=0 หมายถึง "ทั้งหมด" — คำนวณทุกสัญญาแบบไม่มี cap
+    var contractMap = {};
+    allData.forEach(function(item) {
+        var lname = (getAnyValue(item, ['ชื่อลิสซิ่ง','leasing','บริษัท']) || '(ไม่ระบุ)').toString().trim();
+        var cname = (getAnyValue(item, ['เลขสัญญา','contract','สัญญา']) || '(ไม่ระบุ)').toString().trim();
+        var key = lname + '|||' + cname;
+        if (!contractMap[key]) contractMap[key] = { lname: lname, cname: cname, items: [] };
+        contractMap[key].items.push(item);
+    });
+
+    function parseInst(v) {
+        var s = String(v || '').trim();
+        var m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+        return m ? { num: parseInt(m[1]), total: parseInt(m[2]), raw: s } : { num: 0, total: 0, raw: s };
+    }
+
+    var qualified = {}; // lname -> { sum, rows: [{cname,rows,total,instRange,lastInst}] }
+
+    Object.values(contractMap).forEach(function(grp) {
+        var lname = grp.lname, cname = grp.cname, items = grp.items;
+        var sorted = items.slice().sort(function(a, b) {
+            var ia = parseInst(getAnyValue(a, ['งวดที่','installment','งวด']));
+            var ib = parseInst(getAnyValue(b, ['งวดที่','installment','งวด']));
+            return (ib.num - ia.num) || (ib.total - ia.total);
+        });
+        var acc = 0, rows = [];
+        for (var i = 0; i < sorted.length; i++) {
+            var amt = cleanNumber(getAnyValue(sorted[i], ['ค่างวดประจำ','amount','ยอดเงิน','ยอดชำระ','ยอด']));
+            if (limit > 0 && acc + amt > limit) break;
+            acc += amt;
+            rows.push({ item: sorted[i], amt: amt, acc: acc });
+        }
+        if (rows.length === 0) return;
+        rows.reverse();
+        var instNums = rows.map(function(r) { return parseInst(getAnyValue(r.item, ['งวดที่','installment','งวด'])); });
+        var minInst = instNums[0] ? instNums[0].raw : '-';
+        var maxInst = instNums[instNums.length-1] ? instNums[instNums.length-1].raw : '-';
+        var instRange = minInst === maxInst ? minInst : (minInst + ' – ' + maxInst);
+        var lastInst = instNums[instNums.length-1] ? instNums[instNums.length-1].raw : '-';
+        var perAmt = rows.length > 0 ? rows[0].amt : 0;
+        if (!qualified[lname]) qualified[lname] = { sum: 0, rows: [] };
+        qualified[lname].sum += acc;
+        qualified[lname].rows.push({ cname: cname, rows: rows, total: acc, instRange: instRange, lastInst: lastInst, perAmt: perAmt, count: rows.length });
+    });
+    return qualified;
+}
+
+function renderNearEndTable(data) {
+    var wrapper = document.getElementById('nearEndTableWrapper');
+    if (!wrapper) return;
+    var countBadge = document.getElementById('nearEndCount');
+    var sel = document.getElementById('nearEndLimitSelect');
+    var limit = sel ? parseInt(sel.value) || 0 : 200000;
+
+    if (!allData.length) {
+        wrapper.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><span>ยังไม่มีข้อมูล</span></div>';
+        return;
+    }
+
+    var qualified = buildNearEndData(limit);
+    var leasingEntries = Object.entries(qualified).sort(function(a,b){ return b[1].sum - a[1].sum; });
+    var totalContracts = leasingEntries.reduce(function(s,e){ return s + e[1].rows.length; }, 0);
+    if (countBadge) countBadge.textContent = totalContracts.toLocaleString() + ' สัญญา';
+
+    if (leasingEntries.length === 0) {
+        wrapper.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><span>ไม่พบสัญญาในช่วงที่เลือก</span></div>';
+        return;
+    }
+
+    var limitLabel = limit === 0 ? 'ทั้งหมด' : '\u2264 ' + limit.toLocaleString() + ' บาท';
+    var fmtN = function(n) { return n.toLocaleString(undefined, {minimumFractionDigits:2}); };
+
+    var rowNum = 0;
+    var bodyRows = '';
+    var grandTotal = 0;
+
+    leasingEntries.forEach(function(entry, li) {
+        var lname = entry[0], ldata = entry[1];
+        bodyRows += '<tr class="near-end-group-row">' +
+            '<td colspan="8" class="near-end-group-cell">' +
+            '<span class="near-end-group-num">' + (li+1) + '.</span> ' + lname +
+            ' <span class="near-end-group-meta">· ' + ldata.rows.length + ' สัญญา</span>' +
+            '</td></tr>';
+        ldata.rows.sort(function(a,b){ return b.total - a.total; }).forEach(function(c) {
+            rowNum++;
+            grandTotal += c.total;
+            var st = (getAnyValue(c.rows[c.rows.length-1].item, ['สถานะ','status']) || '-').toString();
+            var scls = st.indexOf('เกินกำหนด') >= 0 ? 'status-overdue' : st.indexOf('ยังไม่ถึงกำหนด') >= 0 ? 'status-pending' : 'status-paid';
+            var bg = rowNum % 2 === 0 ? 'style="background:var(--bg2)"' : '';
+            bodyRows += '<tr ' + bg + '>' +
+                '<td class="col-num">' + rowNum + '</td>' +
+                '<td>' + lname + '</td>' +
+                '<td style="color:var(--text-dim)">' + c.cname + '</td>' +
+                '<td class="col-center">' + c.lastInst + '</td>' +
+                '<td class="col-center" style="color:var(--accent)">' + c.count + ' งวด</td>' +
+                '<td class="col-amount">' + fmtN(c.perAmt) + '</td>' +
+                '<td class="col-amount" style="color:var(--success);font-weight:700">' + fmtN(c.total) + '</td>' +
+                '<td class="col-center"><span class="status-badge ' + scls + '">' + st + '</span></td>' +
+                '</tr>';
+        });
+    });
+
+    wrapper.innerHTML = '<div style="padding:6px 12px 8px;font-size:0.75rem;color:var(--text-dim);">' +
+        'คำนวณจากงวดสุดท้ายย้อนขึ้น &nbsp;·&nbsp; ช่วงยอด: <b style="color:var(--accent)">' + limitLabel + '</b>' +
+        '</div>' +
+        '<table class="payment-table near-end-table">' +
+        '<thead><tr>' +
+        '<th style="text-align:center;width:50px">ลำดับ</th>' +
+        '<th style="width:200px">ชื่อลิสซิ่ง</th>' +
+        '<th style="width:150px">เลขสัญญา</th>' +
+        '<th style="text-align:center;width:90px">งวดสุดท้าย</th>' +
+        '<th style="text-align:center;width:80px">จำนวนงวด</th>' +
+        '<th style="text-align:right;width:130px">ค่างวด/เดือน</th>' +
+        '<th style="text-align:right;width:130px">ยอดสะสม</th>' +
+        '<th style="text-align:center;width:120px">สถานะ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + bodyRows + '</tbody>' +
+        '<tfoot><tr class="total-row">' +
+        '<td colspan="6" style="text-align:right;font-weight:700;">ยอดรวม (' + totalContracts.toLocaleString() + ' สัญญา)</td>' +
+        '<td class="col-amount" style="font-weight:700;text-align:right;">' + fmtN(grandTotal) + '</td>' +
+        '<td></td>' +
+        '</tr></tfoot>' +
+        '</table>';
+}
+
+function exportNearEndPDF() {
+    if (!allData.length) { alert('ยังไม่มีข้อมูล'); return; }
+    var sel = document.getElementById('nearEndLimitSelect');
+    var limit = sel ? parseInt(sel.value) || 0 : 200000;
+    var limitLabel = limit === 0 ? 'ทั้งหมด' : '\u2264 ' + limit.toLocaleString() + ' \u0e1a\u0e32\u0e17';
+    var qualified = buildNearEndData(limit);
+    var leasingEntries = Object.entries(qualified).sort(function(a,b){ return b[1].sum - a[1].sum; });
+    if (leasingEntries.length === 0) { alert('ไม่พบสัญญาในช่วงที่เลือก'); return; }
+
+    var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+    var fmtN = function(n) { return n.toLocaleString(undefined, {minimumFractionDigits:2}); };
+    var totalContracts = leasingEntries.reduce(function(s,e){ return s + e[1].rows.length; }, 0);
+    var grandTotal = leasingEntries.reduce(function(s,e){ return s + e[1].sum; }, 0);
+
+    var rowNum = 0;
+    var bodyContent = leasingEntries.map(function(entry, li) {
+        var lname = entry[0], ldata = entry[1];
+        var rows = ldata.rows.slice().sort(function(a,b){ return b.total - a.total; }).map(function(c) {
+            rowNum++;
+            var st = (getAnyValue(c.rows[c.rows.length-1].item, ['สถานะ','status']) || '-').toString();
+            var sc = st.indexOf('\u0e40\u0e01\u0e34\u0e19\u0e01\u0e33\u0e2b\u0e19\u0e14') >= 0 ? 'color:#dc2626' : st.indexOf('\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48') >= 0 ? 'color:#d97706' : 'color:#059669';
+            var bg = rowNum % 2 === 0 ? 'background:#f8fafc' : '';
+            return '<tr style="' + bg + '">' +
+                '<td style="text-align:center;color:#9ca3af">' + rowNum + '</td>' +
+                '<td>' + lname + '</td>' +
+                '<td style="color:#6b7280">' + c.cname + '</td>' +
+                '<td style="text-align:center">' + c.lastInst + '</td>' +
+                '<td style="text-align:center;color:#1d4ed8">' + c.count + ' งวด</td>' +
+                '<td style="text-align:right">' + fmtN(c.perAmt) + '</td>' +
+                '<td style="text-align:right;font-weight:700;color:#059669">' + fmtN(c.total) + '</td>' +
+                '<td style="text-align:center;font-weight:700;font-size:9px;' + sc + '">' + st + '</td>' +
+                '</tr>';
+        }).join('');
+        return '<section class="cat-section">' +
+            '<div class="cat-section-head">' +
+            '<span class="cat-section-num">' + (li+1) + '.</span>' +
+            '<span class="cat-section-name">' + lname + '</span>' +
+            '<span class="cat-section-meta">' + ldata.rows.length + ' \u0e2a\u0e31\u0e0d\u0e0d\u0e32 &nbsp;\u00b7&nbsp; <b>' + fmtN(ldata.sum) + '</b></span>' +
+            '</div>' +
+            '<table><colgroup>' +
+            '<col style="width:5%"><col style="width:20%"><col style="width:15%">' +
+            '<col style="width:10%"><col style="width:9%"><col style="width:13%">' +
+            '<col style="width:13%"><col style="width:15%">' +
+            '</colgroup>' +
+            '<thead><tr>' +
+            '<th>#</th><th style="text-align:left">\u0e0a\u0e37\u0e48\u0e2d\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07</th>' +
+            '<th style="text-align:left">\u0e40\u0e25\u0e02\u0e2a\u0e31\u0e0d\u0e0d\u0e32</th>' +
+            '<th>\u0e07\u0e27\u0e14\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22</th>' +
+            '<th>\u0e08\u0e33\u0e19\u0e27\u0e19\u0e07\u0e27\u0e14</th>' +
+            '<th style="text-align:right">\u0e04\u0e48\u0e32\u0e07\u0e27\u0e14/\u0e40\u0e14\u0e37\u0e2d\u0e19</th>' +
+            '<th style="text-align:right">\u0e22\u0e2d\u0e14\u0e2a\u0e30\u0e2a\u0e21</th>' +
+            '<th>\u0e2a\u0e16\u0e32\u0e19\u0e30</th>' +
+            '</tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+            '</section>';
+    }).join('');
+
+    var win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) { alert('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e2d\u0e19\u0e38\u0e0d\u0e32\u0e15 popup'); return; }
+
+    var css = '@page{size:A4 portrait;margin:10mm}' +
+        '@media print{.toolbar{display:none!important}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead tr{background:#f59e0b!important}thead th{color:#fff!important}thead{display:table-header-group}tr{page-break-inside:avoid}.cat-section{page-break-inside:auto}}' +
+        '*{box-sizing:border-box;margin:0;padding:0}' +
+        'body{font-family:"Sarabun",sans-serif;background:#e5e7eb;color:#111827}' +
+        '.toolbar{position:sticky;top:0;z-index:10;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 20px}' +
+        '.toolbar-title{font-size:13px;color:#94a3b8}.btn-print{background:#f59e0b;color:#fff;border:none;padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}' +
+        '.doc{padding:14px;max-width:210mm;margin:0 auto;background:#fff}' +
+        '.doc-meta{font-size:10px;color:#6b7280;margin-bottom:12px}.doc-meta b{color:#0f172a}' +
+        'table{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed;margin-bottom:8px}' +
+        'th,td{border:1px solid #cbd5e1;padding:4px 5px;word-wrap:break-word}' +
+        'th{background:#f59e0b;color:#fff;text-align:center;border-color:#d97706;font-weight:700;font-size:9px}' +
+        'td{color:#111827;vertical-align:middle}' +
+        'tbody tr:nth-child(even) td{background:#f8fafc}' +
+        '.cat-section{margin-bottom:14px;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden}' +
+        '.cat-section-head{background:#fffbeb;padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fde68a;font-size:10px}' +
+        '.cat-section-num{color:#6b7280;font-weight:700}.cat-section-name{color:#0f172a;font-weight:700;flex:1}' +
+        '.cat-section-meta{color:#b45309;font-weight:600;white-space:nowrap}.cat-section-meta b{color:#0f172a}' +
+        '.cat-section table{margin-bottom:0;border:none}.cat-section table th{background:#f59e0b}' +
+        '.grand-total{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 12px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px}';
+
+    win.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">' +
+        '<title>\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14 \u2014 ' + dateStr + '</title>' +
+        '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
+        '<style>' + css + '</style></head><body>' +
+        '<div class="toolbar"><span class="toolbar-title">\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14 (' + limitLabel + ') \u2014 ' + dateStr + '</span>' +
+        '<button class="btn-print" onclick="window.print()">\ud83d\udda8 \u0e1e\u0e34\u0e21\u0e1e\u0e4c / \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 PDF</button></div>' +
+        '<div class="doc">' +
+        buildThaiDrillHeader('\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07 <span style="color:#f59e0b;font-weight:800;font-style:italic;">ThaiDrill</span>', dateStr) +
+        '<div class="doc-meta">\u0e0a\u0e48\u0e27\u0e07\u0e22\u0e2d\u0e14\u0e04\u0e07\u0e40\u0e2b\u0e25\u0e37\u0e2d: <b>' + limitLabel + '</b> &nbsp;\u00b7&nbsp; \u0e1e\u0e1a <b>' + totalContracts + ' \u0e2a\u0e31\u0e0d\u0e0d\u0e32</b> \u00b7 \u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19 <b>' + fmtN(grandTotal) + '</b></div>' +
+        bodyContent +
+        '<div class="grand-total"><span style="font-weight:700;color:#92400e">\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21\u0e17\u0e31\u0e49\u0e07\u0e2a\u0e34\u0e49\u0e19</span>' +
+        '<span style="font-size:13px;font-weight:700;color:#b45309">' + fmtN(grandTotal) + '</span></div>' +
+        '<div style="margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;">' +
+        '<span>\u0e23\u0e30\u0e1a\u0e1a\u0e10\u0e32\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e25\u0e34\u0e2a\u0e0b\u0e34\u0e48\u0e07 \u0e23\u0e16\u0e40\u0e08\u0e32\u0e30\u0e44\u0e17\u0e22 2026</span>' +
+        '<span>\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e19\u0e35\u0e49\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e42\u0e14\u0e22\u0e23\u0e30\u0e1a\u0e1a\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34 \u2014 \u0e2b\u0e49\u0e32\u0e21\u0e41\u0e01\u0e49\u0e44\u0e02</span>' +
+        '</div></div></body></html>');
+    win.document.close();
 }
 
 function exportCheckReturnPDF() {
