@@ -491,44 +491,7 @@ body {
 
 .chart-card-title i { color: var(--accent); }
 
-/* ===== CHART LOCAL FILTER ROW ===== */
-.chart-filter-row {
-    display: flex; align-items: flex-end;
-    gap: 8px; flex-wrap: wrap;
-    margin-bottom: 12px; padding: 9px 12px;
-    background: rgba(59,130,246,0.05);
-    border: 1px solid rgba(59,130,246,0.12);
-    border-radius: 8px;
-}
-.chart-filter-group {
-    display: flex; flex-direction: column; gap: 3px;
-    flex: 1; min-width: 90px;
-}
-.chart-filter-group label {
-    font-size: 0.62rem; color: #fff;
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-}
-.chart-sel .ms-btn {
-    padding: 5px 28px 5px 8px !important;
-    font-size: 0.75rem !important;
-    min-height: 28px !important;
-}
-.chart-filter-reset {
-    flex-shrink: 0; width: 28px; height: 28px;
-    background: rgba(239,68,68,0.08);
-    border: 1px solid rgba(239,68,68,0.2);
-    border-radius: 6px; color: #f87171;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 0.72rem;
-    transition: all 0.2s; align-self: flex-end;
-}
-.chart-filter-reset:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
-.chart-filter-row.has-filter {
-    border-color: rgba(59,130,246,0.35);
-    background: rgba(59,130,246,0.08);
-}
-
-.chart-wrapper { height: 230px; position: relative; }
+.chart-wrapper { height: 250px; position: relative; }
 
 .chart-empty-state {
     position: absolute;
@@ -1516,3 +1479,35 @@ body {
     .main-content { overflow: visible; border: none; padding: 0; }
     .kpi-card { border: 1px solid #ccc !important; }
 }
+
+/* ===== NEAR END INSTALLMENT TABLE ===== */
+.near-end-table tfoot .total-row td {
+    background: rgba(245,158,11,0.08);
+    border-top: 2px solid #f59e0b;
+}
+.near-end-group-row td {
+    background: var(--bg2) !important;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.near-end-group-cell {
+    padding: 5px 12px !important;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-dim);
+}
+.near-end-group-num { color: var(--accent); }
+.near-end-group-meta { font-weight: 400; }
+.btn-reset-chart {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+.btn-reset-chart:hover { color: var(--accent); border-color: var(--accent); }
