@@ -49,10 +49,6 @@
                 <i class="fas fa-file-pdf"></i>
                 <span>Daily PDF Report</span>
             </button>
-            <button class="btn-pdf-nav" id="btnLastInstPDF" style="background:#7c3aed;">
-                <i class="fas fa-file-pdf"></i>
-                <span>งวดสุดท้าย ≤200K</span>
-            </button>
             <button class="btn-primary" id="btnRefresh">
                 <i class="fas fa-rotate-right"></i>
                 <span>รีเฟรช</span>
@@ -160,6 +156,14 @@
                             แนวโน้มยอดชำระรายเดือน
                         </div>
                     </div>
+                    <div class="filter-row" id="trend-filter-row" style="padding:0 0 10px 0;gap:8px;">
+                        <div class="multi-select table-sel" id="trend-filter-year" data-placeholder="ทุกปี"></div>
+                        <div class="multi-select table-sel" id="trend-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
+                        <div class="multi-select table-sel" id="trend-filter-status" data-placeholder="ทุกสถานะ"></div>
+                        <button class="btn-reset-chart" id="trend-filter-reset" title="รีเซ็ตตัวกรองกราฟนี้">
+                            <i class="fas fa-rotate-right"></i>
+                        </button>
+                    </div>
                     <div class="chart-wrapper">
                         <canvas id="monthlyTrendChart"></canvas>
                     </div>
@@ -170,6 +174,14 @@
                             <i class="fas fa-chart-line"></i>
                             ยอดค่างวดตามชื่อรหัส
                         </div>
+                    </div>
+                    <div class="filter-row" id="step-filter-row" style="padding:0 0 10px 0;gap:8px;">
+                        <div class="multi-select table-sel" id="step-filter-year" data-placeholder="ทุกปี"></div>
+                        <div class="multi-select table-sel" id="step-filter-month" data-placeholder="ทุกเดือน"></div>
+                        <div class="multi-select table-sel" id="step-filter-status" data-placeholder="ทุกสถานะ"></div>
+                        <button class="btn-reset-chart" id="step-filter-reset" title="รีเซ็ตตัวกรองกราฟนี้">
+                            <i class="fas fa-rotate-right"></i>
+                        </button>
                     </div>
                     <div class="chart-wrapper">
                         <canvas id="stepLineChart"></canvas>
@@ -237,6 +249,38 @@
                     </div>
                 </div>
                 <div class="table-wrapper" id="checkReturnTableWrapper">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>กำลังโหลดข้อมูล...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Near End Installment Section -->
+            <section class="table-section">
+                <div class="table-section-header">
+                    <div class="table-section-title">
+                        <i class="fas fa-hourglass-half"></i>
+                        สัญญาใกล้หมดลิสซิ่ง
+                        <span class="card-count-badge" id="nearEndCount">0 สัญญา</span>
+                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
+                    </div>
+                    <div class="table-controls">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:0.78rem;color:var(--text-dim);white-space:nowrap;">ช่วงยอดคงเหลือ</label>
+                            <select id="nearEndLimitSelect" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:7px 32px 7px 11px;border-radius:8px;font-family:inherit;font-size:0.85rem;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">
+                                <option value="0">ทั้งหมด (ดูทุกสัญญา)</option>
+                                <option value="100000">≤ 100,000 บาท</option>
+                                <option value="150000">≤ 150,000 บาท</option>
+                                <option value="200000" selected>≤ 200,000 บาท</option>
+                            </select>
+                        </div>
+                        <button class="btn-export-pdf" id="btnExportNearEndPdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="table-wrapper" id="nearEndTableWrapper">
                     <div class="loading-state">
                         <i class="fas fa-spinner fa-spin"></i>
                         <span>กำลังโหลดข้อมูล...</span>
