@@ -1384,6 +1384,24 @@ body {
 }
 .btn-export-status-pdf:hover { filter: brightness(1.1); }
 
+.btn-export-status-excel {
+    margin-left: 6px;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: filter 0.15s;
+}
+.btn-export-status-excel:hover { filter: brightness(1.1); }
+
 /* ===== Accordion (สรุปหมวดหมู่) ===== */
 .cat-accordion-list {
     display: flex; flex-direction: column;
