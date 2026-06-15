@@ -1056,6 +1056,7 @@ function showStatusModal(statusType) {
                 <button type="button" class="view-toggle-btn" data-view="contract"><i class="fas fa-folder-open"></i> รวมกลุ่มสัญญา</button>
             </div>
             <button type="button" class="btn-export-status-pdf"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            <button type="button" class="btn-export-status-excel"><i class="fas fa-file-excel"></i> Export Excel</button>
         </div>
         ${listViewHtml}
         ${categoryViewHtml}
@@ -1097,6 +1098,14 @@ function showStatusModal(statusType) {
                 title, data, totalAmt, cols, groups, view: activeView,
                 fmtMoney, pct, headerRowHtml, buildRow, contractGroupMap
             });
+        });
+    }
+
+    // ปุ่ม Export Excel
+    const btnExportExcel = bodyEl.querySelector('.btn-export-status-excel');
+    if (btnExportExcel) {
+        btnExportExcel.addEventListener('click', () => {
+            exportStatusExcel({ title, data, totalAmt, fmtMoney });
         });
     }
 
@@ -1304,6 +1313,136 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
         </div>
         </body></html>`);
     win.document.close();
+}
+
+// ===== EXPORT EXCEL (SheetJS) =====
+function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
+    if (typeof XLSX === 'undefined') {
+        alert('ไม่สามารถโหลด SheetJS ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+        return;
+    }
+    if (!data || data.length === 0) {
+        alert('ไม่มีข้อมูลสำหรับ Export');
+        return;
+    }
+
+    const fmtDate = val => {
+        if (!val) return '';
+        const d = parseDueDate ? parseDueDate(val) : new Date(val);
+        if (!d || isNaN(d)) return String(val);
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+    const now = new Date();
+    const reportDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const fileName = `${title.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]/g, '_')}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`;
+
+    // สร้างข้อมูลแถว
+    const rows = data.map((item, idx) => {
+        const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
+        const leasing  = getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '-';
+        const contract = getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '-';
+        const airCode  = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
+        const instNo   = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
+        const amount   = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
+        const status   = getAnyValue(item, ['สถานะ', 'status']) || '-';
+        return {
+            'ลำดับ': idx + 1,
+            'กำหนดชำระ': fmtDate(rawDate),
+            'ชื่อลิสซิ่ง': leasing,
+            'เลขสัญญา': contract,
+            'AIR CODE': airCode,
+            'งวดที่': instNo,
+            'ค่างวดประจำ (บาท)': amount,
+            'สถานะ': status
+        };
+    });
+
+    // แถวสรุป
+    rows.push({});
+    rows.push({
+        'ลำดับ': '',
+        'กำหนดชำระ': '',
+        'ชื่อลิสซิ่ง': `รวมทั้งหมด ${data.length} รายการ`,
+        'เลขสัญญา': '',
+        'AIR CODE': '',
+        'งวดที่': '',
+        'ค่างวดประจำ (บาท)': totalAmt,
+        'สถานะ': ''
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // กำหนดความกว้างคอลัมน์
+    ws['!cols'] = [
+        { wch: 6 },   // ลำดับ
+        { wch: 18 },  // กำหนดชำระ
+        { wch: 40 },  // ชื่อลิสซิ่ง
+        { wch: 22 },  // เลขสัญญา
+        { wch: 12 },  // AIR CODE
+        { wch: 10 },  // งวดที่
+        { wch: 20 },  // ค่างวดประจำ
+        { wch: 16 },  // สถานะ
+    ];
+
+    // เพิ่ม header info บนสุด (แทรกแถวก่อน json_to_sheet ไม่ได้ง่าย ใช้ sheet_add_aoa แทน)
+    XLSX.utils.sheet_add_aoa(ws, [
+        ['บริษัท รถเจาะไทย จำกัด'],
+        [title],
+        [`วันที่ออกรายงาน: ${reportDate}`],
+        []
+    ], { origin: 'A1' });
+
+    // ย้าย data rows ลงมา 4 แถว (เพราะเพิ่ม header)
+    const dataWithHeader = [
+        ['บริษัท รถเจาะไทย จำกัด', '', '', '', '', '', '', ''],
+        [title, '', '', '', '', '', '', ''],
+        [`วันที่ออกรายงาน: ${reportDate}`, '', '', '', '', '', '', ''],
+        [],
+        ['ลำดับ', 'กำหนดชำระ', 'ชื่อลิสซิ่ง', 'เลขสัญญา', 'AIR CODE', 'งวดที่', 'ค่างวดประจำ (บาท)', 'สถานะ'],
+        ...data.map((item, idx) => {
+            const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
+            return [
+                idx + 1,
+                fmtDate(rawDate),
+                getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '-',
+                getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '-',
+                getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-',
+                getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-',
+                cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด'])),
+                getAnyValue(item, ['สถานะ', 'status']) || '-'
+            ];
+        }),
+        [],
+        ['', '', `รวมทั้งหมด ${data.length} รายการ`, '', '', '', totalAmt, '']
+    ];
+
+    const ws2 = XLSX.utils.aoa_to_sheet(dataWithHeader);
+    ws2['!cols'] = [
+        { wch: 6 }, { wch: 18 }, { wch: 40 }, { wch: 22 },
+        { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 16 }
+    ];
+
+    // จัด format number คอลัมน์ค่างวด (col G = index 6, เริ่มแถว 6 = index 5)
+    const amtColLetter = 'G';
+    const startRow = 6; // row 1-4=header, 5=title row, 6=data start
+    for (let r = startRow; r < startRow + data.length; r++) {
+        const cellRef = `${amtColLetter}${r}`;
+        if (ws2[cellRef] && typeof ws2[cellRef].v === 'number') {
+            ws2[cellRef].t = 'n';
+            ws2[cellRef].z = '#,##0.00';
+        }
+    }
+    // แถวรวม
+    const totalRowRef = `${amtColLetter}${startRow + data.length + 1}`;
+    if (ws2[totalRowRef]) {
+        ws2[totalRowRef].t = 'n';
+        ws2[totalRowRef].z = '#,##0.00';
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws2, 'รายการ');
+    XLSX.writeFile(wb, fileName);
 }
 
 function renderTable(data) {
