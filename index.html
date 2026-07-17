@@ -4,385 +4,693 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบสรุปการชำระเงิน | รถเจาะไทย 2026</title>
-    <script>
-        // Auto-redirect to mobile version if on mobile device (unless user prefers desktop)
-        (function () {
-            var prefer = localStorage.getItem('viewMode');
-            var isMobile = /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini/i.test(navigator.userAgent)
-                || window.innerWidth <= 768;
-            if (isMobile && prefer !== 'desktop') {
-                window.location.replace('mobile.html');
-            }
-        })();
-    </script>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>BSL Factoring Dashboard</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Chart.js Datalabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- html2pdf Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
-<body>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8">
 
-    <!-- Top Navigation Bar -->
-    <nav class="topnav">
-        <div class="topnav-brand">
-            <div class="brand-icon">
-                <i class="fas fa-truck-monster"></i>
+    <!-- Top Loading Bar -->
+    <div id="top-loader" class="fixed top-0 left-0 right-0 z-[9999] h-[3px] opacity-0 pointer-events-none">
+        <div id="top-loader-bar" class="h-full w-0 rounded-full"
+            style="background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899, #f43f5e);"></div>
+        <div id="top-loader-glow" class="absolute top-0 right-0 h-full w-24 opacity-70"
+            style="background: linear-gradient(90deg, transparent, #f43f5e);"></div>
+    </div>
+
+    <div class="max-w-[1600px] mx-auto space-y-6">
+
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-slate-800">BSL Factoring Dashboard</h1>
+                <p class="text-slate-500 mt-1">ภาพรวมข้อมูลการรับซื้อและลูกหนี้</p>
             </div>
-            <div class="brand-text">
-                <span class="brand-title">ฐานข้อมูลลิสซิ่ง — รถเจาะไทย</span>
-                <span class="brand-sub">Payment Log Dashboard &nbsp;·&nbsp; 2026</span>
+            <div class="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
+                <!-- กล่องวงเงินที่ใช้ได้ (F - E) -->
+                <div class="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 flex items-center space-x-3 shadow-sm hidden md:flex"
+                    id="usable-credit-container">
+                    <div class="bg-emerald-100 p-1.5 rounded-md text-emerald-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                            </path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-emerald-600 uppercase tracking-wider">วงเงินที่ใช้ได้</p>
+                        <p class="text-2xl font-bold text-slate-800 leading-none mt-1" id="usable-credit-amount">฿0.00
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ปุ่มย่อ/ขยายกล่องรายงานครบกำหนดชำระ + ยอด Advance 90% -->
+                <button id="btnToggleDetailTables" data-html2canvas-ignore="true"
+                    class="bg-slate-700 text-white hover:bg-slate-800 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all font-bold text-sm">
+                    <svg id="btnToggleDetailTablesIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                    <span id="btnToggleDetailTablesLbl">ย่อตารางรายละเอียด</span>
+                </button>
+
+                <!-- ปุ่ม Daily PDF Report -->
+                <button id="btnDailyPDF" data-html2canvas-ignore="true"
+                    class="bg-rose-500 text-white hover:bg-rose-600 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all font-bold text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 17v-2a4 4 0 014-4h4M9 17H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v2M9 17h8a2 2 0 002-2v-2" />
+                    </svg>
+                    Daily PDF Report
+                </button>
+
+                <!-- ปุ่มเข้าสู่ Google Sheets -->
+                <a href="https://docs.google.com/spreadsheets/d/10t3F86oixH13nxtO7VnzpaATvoI79rgI-bNgzCzoM1g/edit?gid=799940825#gid=799940825"
+                    target="_blank"
+                    class="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all font-bold text-sm"
+                    data-html2canvas-ignore="true">
+                    <svg class="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M14.5 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zM15 19H9v-2h6v2zm0-4H9v-2h6v2zm0-4H9V9h6v2zm-1-2.5V3.5L18.5 8H14z" />
+                    </svg>
+                    Google Sheets
+                </a>
             </div>
         </div>
-        <div class="topnav-actions">
-            <div class="last-updated" id="lastUpdated">
-                <i class="fas fa-circle"></i>
-                <span>กำลังโหลดข้อมูล...</span>
-            </div>
-            <a href="https://docs.google.com/spreadsheets/d/1W6akdetULBgPu0Wx5jn1HKmCtlM-wHE3towbFygGQvo/edit?usp=sharing" target="_blank" class="btn-primary" style="display: flex; align-items: center; gap: 8px; background-color: #10b981; text-decoration: none; color: white;">
-                <i class="fas fa-file-excel"></i>
-                <span>Google Sheet</span>
-            </a>
-            <button class="btn-pdf-nav" id="btnDailyPDF">
-                <i class="fas fa-file-pdf"></i>
-                <span>Daily PDF Report</span>
-            </button>
-            <button class="btn-primary" id="btnRefresh">
-                <i class="fas fa-rotate-right"></i>
-                <span>รีเฟรช</span>
-            </button>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4" id="kpi-container">
+            <!-- Cards will be injected by script.js -->
         </div>
-    </nav>
 
-    <!-- App Body -->
-    <div class="app-body">
+        <!-- Charts Row 1 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h3 class="text-lg font-bold text-slate-800" id="chart1-title">กราฟเปรียบเทียบ วงเงิน vs ยอดที่ใช้ไป
+                </h3>
+                <div class="flex gap-2" id="f1-filters-container">
+                    <div id="f1-month-container" class="relative inline-block text-left"></div>
+                    <div id="f1-year-container" class="relative inline-block text-left"></div>
+                </div>
+            </div>
+            <div class="relative h-80 w-full">
+                <canvas id="comparisonChart"></canvas>
+            </div>
+        </div>
 
-        <!-- Main Dashboard (full width) -->
-        <div class="main-content">
+        <!-- Charts Row 2 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-4">
+                    <h2 class="text-xl font-black text-slate-800">แสดงรายการที่ถึงกำหนดชำระ</h2>
+                    <div class="flex gap-4">
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-lg">
+                            <span
+                                class="text-xs font-bold text-rose-600 uppercase tracking-wider">รวมเงินที่ต้องชำระ:</span>
+                            <span class="text-sm font-black text-slate-800" id="total-due-n">฿0.00</span>
+                        </div>
+                        <div
+                            class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+                            <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">ยอดคงเหลือรับ
+                                10%:</span>
+                            <span class="text-sm font-black text-slate-800" id="total-remain-q">฿0.00</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2" id="f2-filters-container">
+                    <div id="f2-day-container" class="relative inline-block text-left"></div>
+                    <div id="f2-month-container" class="relative inline-block text-left"></div>
+                    <div id="f2-year-container" class="relative inline-block text-left"></div>
+                </div>
+            </div>
+            <div class="relative h-80 w-full">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
 
-            <!-- KPI Row -->
-            <section class="kpi-row">
-                <div class="kpi-card kpi-blue">
-                    <div class="kpi-icon"><i class="fas fa-baht-sign"></i></div>
-                    <div class="kpi-data">
-                        <div class="kpi-label">ยอดค่างวดรวมทั้งหมด</div>
-                        <div class="kpi-value" id="total-amount">0</div>
-                        <div class="kpi-note"><i class="fas fa-database"></i> อัปเดตจาก Google Sheets</div>
-                    </div>
-                </div>
-                <div class="kpi-card kpi-green">
-                    <div class="kpi-icon"><i class="fas fa-circle-check"></i></div>
-                    <div class="kpi-data">
-                        <div class="kpi-label">ยอดที่ชำระแล้ว</div>
-                        <div class="kpi-value" id="paid-amount">0</div>
-                        <div class="kpi-note kpi-note-success" id="paid-count"><i class="fas fa-list"></i> 0 รายการ</div>
-                        <button class="btn-kpi-detail" id="btnPaidDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
-                    </div>
-                </div>
-                <div class="kpi-card kpi-red">
-                    <div class="kpi-icon"><i class="fas fa-triangle-exclamation"></i></div>
-                    <div class="kpi-data">
-                        <div class="kpi-label">ค่างวดเกินกำหนด</div>
-                        <div class="kpi-value" id="overdue-amount">0</div>
-                        <div class="kpi-note kpi-note-danger" id="overdue-count"><i class="fas fa-list"></i> 0 รายการ</div>
-                        <button class="btn-kpi-detail" id="btnOverdueDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
-                    </div>
-                </div>
-                <div class="kpi-card kpi-yellow">
-                    <div class="kpi-icon"><i class="fas fa-hourglass-half"></i></div>
-                    <div class="kpi-data">
-                        <div class="kpi-label">ยังไม่ถึงกำหนดชำระ</div>
-                        <div class="kpi-value" id="pending-amount">0</div>
-                        <div class="kpi-note kpi-note-warning" id="pending-count"><i class="fas fa-list"></i> 0 รายการ</div>
-                        <button class="btn-kpi-detail" id="btnPendingDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
-                    </div>
-                </div>
-                <div class="kpi-card kpi-teal">
-                    <div class="kpi-icon"><i class="fas fa-calendar-check"></i></div>
-                    <div class="kpi-data">
-                        <div class="kpi-label">ยอดค่างวดเดือนปัจจุบัน</div>
-                        <div class="kpi-value" id="current-month-amount">0</div>
-                        <div class="kpi-note kpi-note-teal" id="current-month-count"><i class="fas fa-list-check"></i> 0 รายการ</div>
-                        <button class="btn-kpi-detail" id="btnCurrentMonthDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
-                    </div>
-                </div>
-            </section>
+        <!-- รายการข้อมูลรายย่อย (Data 1) -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="table-export-area">
+            <!-- หัวกระดาษสำหรับรายงาน (Visible only in PDF/Print) -->
+            <div class="hidden print:block text-center mb-8 border-b-2 border-indigo-600 pb-6">
+                <h1 class="text-3xl font-black text-slate-800 tracking-tighter uppercase">BSL Factoring Dashboard</h1>
+                <p class="text-slate-400 text-xs font-bold mt-1 uppercase tracking-[0.3em]">Financial Report & Transaction Summary</p>
+            </div>
 
-            <!-- Filter Section -->
-            <section class="filter-section">
-                <div class="section-header">
-                    <i class="fas fa-filter"></i>
-                    <span>กรองข้อมูล</span>
-                </div>
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label>ปี</label>
-                        <div class="multi-select" id="filter-year" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>เดือน</label>
-                        <div class="multi-select" id="filter-month" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>วันที่</label>
-                        <div class="multi-select" id="filter-date" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>ชื่อลิสซิ่ง</label>
-                        <div class="multi-select" id="filter-leasing" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>Air Code</label>
-                        <div class="multi-select" id="filter-aircode" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>สถานะ</label>
-                        <div class="multi-select" id="filter-status" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <button class="btn-reset" id="reset-filters">
-                        <i class="fas fa-arrow-rotate-left"></i> รีเซ็ต
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">รายงานครบกำหนดชำระ <span
+                            id="pdf-subtitle" class="text-sm font-medium text-slate-500 ml-2"></span></h3>
+                    <!-- ปุ่มซ่อน/แสดงรายละเอียด -->
+                    <button id="main-table-toggle-btn" data-html2canvas-ignore="true"
+                        class="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center gap-1.5 transition-all font-bold text-[10px] uppercase tracking-wider border border-indigo-100">
+                        <svg id="main-table-toggle-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                        <span id="main-table-toggle-lbl">ซ่อนรายละเอียด</span>
+                    </button>
+                    <!-- ปุ่ม Export PDF เฉพาะตาราง -->
+                    <button data-html2canvas-ignore="true" onclick="exportToPDF()"
+                        class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1 rounded-md flex items-center gap-1.5 transition-all font-bold text-[10px] uppercase tracking-wider border border-rose-100">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            </path>
+                        </svg>
+                        Export PDF
                     </button>
                 </div>
-            </section>
+                <div class="flex gap-2 items-center" data-html2canvas-ignore="true" id="table-filters-container">
 
-            <!-- Charts Section -->
-            <section class="charts-section">
-                <div class="chart-card">
-                    <div class="chart-card-header">
-                        <div class="chart-card-title">
-                            <i class="fas fa-chart-bar"></i>
-                            แนวโน้มยอดชำระรายเดือน
-                        </div>
-                    </div>
-                    <div class="filter-row" id="trend-filter-row" style="padding:0 0 10px 0;gap:8px;">
-                        <div class="multi-select table-sel" id="trend-filter-year" data-placeholder="ทุกปี"></div>
-                        <div class="multi-select table-sel" id="trend-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                        <div class="multi-select table-sel" id="trend-filter-status" data-placeholder="ทุกสถานะ"></div>
-                        <button class="btn-reset-chart" id="trend-filter-reset" title="รีเซ็ตตัวกรองกราฟนี้">
-                            <i class="fas fa-rotate-right"></i>
+                    <!-- Status Filter Dropdown (checkbox) -->
+                    <div class="relative inline-block text-left" id="status-filter-wrapper">
+                        <button id="status-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span id="status-filter-label">สถานะ (ทั้งหมด)</span>
+                            <svg id="status-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
-                    </div>
-                    <div class="chart-wrapper">
-                        <canvas id="monthlyTrendChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <div class="chart-card-header">
-                        <div class="chart-card-title">
-                            <i class="fas fa-chart-line"></i>
-                            ยอดค่างวดตามชื่อรหัส
+                        <div id="status-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
                         </div>
                     </div>
-                    <div class="filter-row" id="step-filter-row" style="padding:0 0 10px 0;gap:8px;">
-                        <div class="multi-select table-sel" id="step-filter-year" data-placeholder="ทุกปี"></div>
-                        <div class="multi-select table-sel" id="step-filter-month" data-placeholder="ทุกเดือน"></div>
-                        <div class="multi-select table-sel" id="step-filter-status" data-placeholder="ทุกสถานะ"></div>
-                        <button class="btn-reset-chart" id="step-filter-reset" title="รีเซ็ตตัวกรองกราฟนี้">
-                            <i class="fas fa-rotate-right"></i>
+
+                    <!-- Note Filter Dropdown (checkbox) -->
+                    <div class="relative inline-block text-left" id="note-filter-wrapper">
+                        <button id="note-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                            </svg>
+                            <span id="note-filter-label">หมายเหตุ (ทั้งหมด)</span>
+                            <svg id="note-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
+                        <div id="note-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
                     </div>
-                    <div class="chart-wrapper">
-                        <canvas id="stepLineChart"></canvas>
-                    </div>
-                </div>
-            </section>
 
-            <!-- Table Section -->
-            <section class="table-section">
-                <div class="table-section-header">
-                    <div class="table-section-title">
-                        <i class="fas fa-table-list"></i>
-                        รายการชำระเงิน
-                        <span class="card-count-badge" id="cardCount">0 รายการ</span>
-                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
-                    </div>
-                    <div class="table-controls">
-                        <div class="table-search-box">
-                            <i class="fas fa-magnifying-glass"></i>
-                            <input type="text" id="searchInput" placeholder="ค้นหา ทะเบียน, ลิสซิ่ง, สัญญา...">
-                        </div>
-                        <div class="table-filter-inline">
-                            <div class="multi-select table-sel" id="table-filter-year" data-placeholder="ทุกปี"></div>
-                            <div class="multi-select table-sel" id="table-filter-month" data-placeholder="ทุกเดือน"></div>
-                            <div class="multi-select table-sel" id="table-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                            <div class="multi-select table-sel" id="table-filter-status" data-placeholder="ทุกสถานะ"></div>
-                        </div>
-                        <button class="btn-export-pdf" id="btnExportTablePdf">
-                            <i class="fas fa-file-pdf"></i> Export PDF
+                    <!-- Month Filter Dropdown (checkbox) -->
+                    <div class="relative inline-block text-left" id="month-filter-wrapper">
+                        <button id="month-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="month-filter-label">เดือน (ทั้งหมด)</span>
+                            <svg id="month-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
+                        <div id="month-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
                     </div>
-                </div>
-                <div class="table-wrapper" id="paymentTableWrapper">
-                    <div class="loading-state">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>กำลังโหลดข้อมูล...</span>
-                    </div>
-                </div>
-            </section>
 
-            <!-- Check Return Fee Section -->
-            <section class="table-section">
-                <div class="table-section-header">
-                    <div class="table-section-title">
-                        <i class="fas fa-file-invoice-dollar"></i>
-                        ค่าธรรมเนียมเช็คคืน
-                        <span class="card-count-badge" id="checkReturnCount">0 รายการ</span>
-                        <span class="check-return-subtitle" id="checkReturnSubtitle"></span>
-                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
-                    </div>
-                    <div class="table-controls">
-                        <div class="table-search-box">
-                            <i class="fas fa-magnifying-glass"></i>
-                            <input type="text" id="checkReturnSearch" placeholder="ค้นหา รายการ, สัญญา, เลขเช็ค...">
-                        </div>
-                        <div class="table-filter-inline">
-                            <div class="multi-select table-sel" id="cr-filter-year" data-placeholder="ทุกปี"></div>
-                            <div class="multi-select table-sel" id="cr-filter-month" data-placeholder="ทุกเดือน"></div>
-                            <div class="multi-select table-sel" id="cr-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                            <div class="multi-select table-sel" id="cr-filter-bank" data-placeholder="ทุกธนาคาร"></div>
-                        </div>
-                        <button class="btn-export-pdf" id="btnExportCheckReturnPdf">
-                            <i class="fas fa-file-pdf"></i> Export PDF
+                    <!-- Year Filter Dropdown (checkbox) -->
+                    <div class="relative inline-block text-left" id="year-filter-wrapper">
+                        <button id="year-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="year-filter-label">ปี (ทั้งหมด)</span>
+                            <svg id="year-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
-                    </div>
-                </div>
-                <div class="table-wrapper" id="checkReturnTableWrapper">
-                    <div class="loading-state">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>กำลังโหลดข้อมูล...</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Near End Installment Section -->
-            <section class="table-section">
-                <div class="table-section-header">
-                    <div class="table-section-title">
-                        <i class="fas fa-hourglass-half"></i>
-                        สัญญาใกล้จบลิสซิ่ง
-                        <span class="card-count-badge" id="nearEndCount">0 สัญญา</span>
-                        <span class="drag-hint"><i class="fas fa-hand-pointer"></i> คลิกที่ตาราง เพื่อเลื่อนภายใน</span>
-                    </div>
-                    <div class="table-controls">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:0.78rem;color:var(--text-dim);white-space:nowrap;">ช่วงยอดคงเหลือ</label>
-                            <select id="nearEndLimitSelect" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:7px 32px 7px 11px;border-radius:8px;font-family:inherit;font-size:0.85rem;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">
-                                <option value="0">ทั้งหมด (ดูทุกสัญญา)</option>
-                                <option value="100000">≤ 100,000 บาท</option>
-                                <option value="150000">≤ 150,000 บาท</option>
-                                <option value="200000" selected>≤ 200,000 บาท</option>
-                            </select>
+                        <div id="year-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
                         </div>
-                        <button class="btn-export-pdf" id="btnExportNearEndPdf">
-                            <i class="fas fa-file-pdf"></i> Export PDF
+                    </div>
+
+                </div>
+                    <!-- Due Date Calendar Filter -->
+                    <div class="relative inline-block text-left" id="duedate-filter-wrapper">
+                        <button id="duedate-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="duedate-filter-label">วันที่ครบกำหนด</span>
+                            <svg id="duedate-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
+                        <div id="duedate-filter-dropdown"
+                            class="hidden duecal-dropdown absolute right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                            <div class="duecal-topbar">
+                                <button class="duecal-nav" id="duedate-cal-prev" type="button">&lsaquo;</button>
+                                <select class="duecal-sel" id="duedate-cal-month-sel"></select>
+                                <select class="duecal-sel" id="duedate-cal-year-sel"></select>
+                                <button class="duecal-nav" id="duedate-cal-next" type="button">&rsaquo;</button>
+                            </div>
+                            <div class="duecal-actions">
+                                <button class="duecal-btn sel" id="duedate-cal-selall" type="button">เลือกทั้งหมด</button>
+                                <button class="duecal-btn clr" id="duedate-cal-clear" type="button">ล้าง</button>
+                            </div>
+                            <div class="duecal-weekdays">
+                                <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+                            </div>
+                            <div class="duecal-grid" id="duedate-cal-grid"></div>
+                            <div class="duecal-summary" id="duedate-cal-summary">ยังไม่ได้เลือกวันที่</div>
+                        </div>
                     </div>
-                </div>
-                <div class="table-wrapper" id="nearEndTableWrapper">
-                    <div class="loading-state">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>กำลังโหลดข้อมูล...</span>
-                    </div>
-                </div>
-            </section>
 
-        </div>
+            </div>
 
-    </div>
+            <div class="overflow-x-auto" id="main-table-wrapper">
+                <table class="w-full text-left border-collapse border border-slate-300 table-fixed">
+                    <colgroup>
+                        <col style="width: 11%;"> <!-- วันที่ครบกำหนด -->
+                        <col style="width: 9%;">  <!-- เลข TD -->
+                        <col style="width: 11%;"> <!-- เลขที่ IV -->
+                        <col style="width: 12%;"> <!-- รายละเอียด -->
+                        <col style="width: 7%;">  <!-- ประจำเดือน -->
+                        <col style="width: 13%;"> <!-- ลูกหนี้ -->
+                        <col style="width: 9%;">  <!-- สถานะ -->
+                        <col style="width: 13%;"> <!-- หมายเหตุ -->
+                        <col style="width: 15%;"> <!-- จำนวนเงิน -->
+                    </colgroup>
+                    <thead>
+                        <!-- แถวสำหรับเว้นระยะขอบบนในหน้า 2 เป็นต้นไป (Visible only in Print) -->
+                        <tr class="hidden print:table-row h-[15mm]">
+                            <th colspan="9" class="p-0 border-none bg-white"></th>
+                        </tr>
+                        <tr class="bg-indigo-600 border-b border-indigo-700 text-white font-bold text-base tracking-wide text-center"
+                            style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">วันที่ครบกำหนด</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap" style="background:#4338ca;-webkit-print-color-adjust:exact;print-color-adjust:exact;">เลข TD</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">เลขที่ IV</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">รายละเอียด</th>
+                            <th class="p-3 border-r border-indigo-500 whitespace-nowrap">ประจำเดือน</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">ลูกหนี้</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">สถานะ</th>
+                            <th class="p-4 border-r border-indigo-500 whitespace-nowrap">หมายเหตุ</th>
+                            <th class="p-4 whitespace-nowrap">จำนวนเงิน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="text-sm text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+            </div>
 
-    <!-- Debug Panel (Hidden by default) -->
-    <div id="debug-panel" style="display:none; margin: 20px; padding: 20px; background: #000; border: 1px solid #f43f5e; border-radius: 10px;">
-        <h3 style="color:#f43f5e; margin-bottom:10px;">ระบบตรวจสอบปัญหา (Debug Info)</h3>
-        <pre id="debug-content" style="font-size:0.7rem; overflow-x:auto; color:#fff;"></pre>
-    </div>
-
-    <!-- Detail Modal -->
-    <div id="detailModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-receipt"></i>
-                    รายละเอียดรายการชำระเงิน
-                </div>
-                <button class="close-modal"><i class="fas fa-xmark"></i></button>
-            </div>
-            <div id="modalBody" class="modal-body"></div>
-            <div class="modal-footer">
-                <button class="btn-close-modal">
-                    <i class="fas fa-xmark"></i> ปิดหน้าต่าง
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Status Detail Modal -->
-    <div id="statusModal" class="modal">
-        <div class="modal-content status-modal-content">
-            <div class="modal-header">
-                <div class="modal-title" id="statusModalTitle">
-                    <i class="fas fa-list"></i> รายละเอียด
-                </div>
-                <button class="close-modal" id="closeStatusModal"><i class="fas fa-xmark"></i></button>
-            </div>
-            <div id="statusModalBody" class="status-modal-body"></div>
-            <div class="modal-footer">
-                <button class="btn-close-modal" id="btnCloseStatusModal">
-                    <i class="fas fa-xmark"></i> ปิดหน้าต่าง
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- PDF Report Modal -->
-    <div id="pdfModal" class="modal pdf-modal-overlay">
-        <div class="pdf-modal-content">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i>
-                    รายงานการชำระเงินประจำวัน
-                </div>
-                <button class="close-modal" id="closePdfModal"><i class="fas fa-xmark"></i></button>
-            </div>
-            <div class="pdf-controls">
-                <div class="pdf-cal-wrap">
-                    <div class="pdf-cal-topbar">
-                        <button class="pdf-cal-nav" id="deskCalPrev"><i class="fas fa-chevron-left"></i></button>
-                        <select class="pdf-cal-sel" id="deskCalMonthSel"></select>
-                        <select class="pdf-cal-sel" id="deskCalYearSel"></select>
-                        <button class="pdf-cal-nav" id="deskCalNext"><i class="fas fa-chevron-right"></i></button>
-                        <button class="pdf-cal-selall" id="deskCalSelAll">เลือกทั้งหมด</button>
-                        <button class="pdf-cal-clear" id="deskCalClear">ล้าง</button>
-                    </div>
-                    <div class="pdf-cal-weekdays">
-                        <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
-                    </div>
-                    <div class="pdf-cal-grid" id="deskCalGrid"></div>
-                    <div class="pdf-cal-selected-bar" id="deskCalBar">ยังไม่ได้เลือกวันที่</div>
-                </div>
-                <button class="btn-generate-pdf" id="btnGeneratePdf">
-                    <i class="fas fa-wand-magic-sparkles"></i> สร้าง PDF รายงาน
-                </button>
-            </div>
-            <div class="pdf-preview-area" id="pdfPreviewArea">
-                <div class="pdf-preview-toolbar">
-                    <span class="pdf-preview-info" id="pdfPreviewInfo"></span>
-                    <button class="btn-download-pdf" id="btnDownloadPdf">
-                        <i class="fas fa-download"></i> ดาวน์โหลด PDF
+            <!-- ส่วนท้ายรายงาน: สรุปยอดและลายเซ็น (ห้ามแยกหน้ากัน) -->
+            <div id="report-footer-section" class="mt-8">
+                <!-- สรุปยอดตามลูกหนี้ (Debtor Summary) -->
+                <div class="flex items-center gap-3 mb-3" data-html2canvas-ignore="true">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">รายละเอียดลูกหนี้ (แยกตาม TD)</span>
+                    <button id="debtor-summary-toggle-btn"
+                        class="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center gap-1.5 transition-all font-bold text-[10px] uppercase tracking-wider border border-indigo-100">
+                        <svg id="debtor-summary-toggle-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                        <span id="debtor-summary-toggle-lbl">ซ่อนรายละเอียดลูกหนี้</span>
                     </button>
                 </div>
-                <div class="pdf-preview-scroll">
-                    <div id="pdfReportContent"></div>
+                <div id="debtor-summary-container" class="mb-8 w-full overflow-x-auto">
+                    <!-- Injected by JS -->
                 </div>
+
+                <!-- Table Footer -->
+                <div class="border-t border-slate-100 pt-8">
+                    <div class="flex justify-end mb-12">
+                        <div
+                            class="flex items-center gap-4 px-8 py-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">ยอดเงินรวม:</span>
+                            <span class="text-2xl font-black text-indigo-600" id="table-total-amount">0.00</span>
+                        </div>
+                    </div>
+
+                    <div
+                        class="grid grid-cols-3 gap-4 md:gap-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] pt-6">
+                        <div class="space-y-6">
+                            <div class="h-10"></div>
+                            <div class="border-t border-slate-300 mx-4 md:mx-12"></div>
+                            <p>ผู้จัดทำ</p>
+                        </div>
+                        <div class="space-y-6">
+                            <div class="h-10"></div>
+                            <div class="border-t border-slate-300 mx-4 md:mx-12"></div>
+                            <p>ผู้ตรวจสอบ</p>
+                        </div>
+                        <div class="space-y-6">
+                            <div class="h-10"></div>
+                            <div class="border-t border-slate-300 mx-4 md:mx-12"></div>
+                            <p>ผู้อนุมัติ</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ตาราง ยอด Advance 90% -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="advance-table-area">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">ยอด Advance 90%</h3>
+                    <!-- ปุ่มซ่อน/แสดงรายละเอียด -->
+                    <button id="adv-table-toggle-btn" data-html2canvas-ignore="true"
+                        class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1 rounded-md flex items-center gap-1.5 transition-all font-bold text-[10px] uppercase tracking-wider border border-emerald-100">
+                        <svg id="adv-table-toggle-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                        <span id="adv-table-toggle-lbl">ซ่อนรายละเอียด</span>
+                    </button>
+                </div>
+                <div class="flex gap-2 items-center" data-html2canvas-ignore="true" id="advance-filters-container">
+
+                    <!-- Status Filter -->
+                    <div class="relative inline-block text-left" id="adv-status-filter-wrapper">
+                        <button id="adv-status-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span id="adv-status-filter-label">สถานะ (ทั้งหมด)</span>
+                            <svg id="adv-status-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="adv-status-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
+                    </div>
+
+                    <!-- Month Filter -->
+                    <div class="relative inline-block text-left" id="adv-month-filter-wrapper">
+                        <button id="adv-month-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="adv-month-filter-label">เดือน (ทั้งหมด)</span>
+                            <svg id="adv-month-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="adv-month-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
+                    </div>
+
+                    <!-- Year Filter -->
+                    <div class="relative inline-block text-left" id="adv-year-filter-wrapper">
+                        <button id="adv-year-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="adv-year-filter-label">ปี (ทั้งหมด)</span>
+                            <svg id="adv-year-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="adv-year-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
+                    </div>
+
+                </div>
+                    <!-- Due Date Calendar Filter -->
+                    <div class="relative inline-block text-left" id="adv-duedate-filter-wrapper">
+                        <button id="adv-duedate-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="adv-duedate-filter-label">วันที่ครบกำหนด</span>
+                            <svg id="adv-duedate-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="adv-duedate-filter-dropdown"
+                            class="hidden duecal-dropdown absolute right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                            <div class="duecal-topbar">
+                                <button class="duecal-nav" id="adv-duedate-cal-prev" type="button">&lsaquo;</button>
+                                <select class="duecal-sel" id="adv-duedate-cal-month-sel"></select>
+                                <select class="duecal-sel" id="adv-duedate-cal-year-sel"></select>
+                                <button class="duecal-nav" id="adv-duedate-cal-next" type="button">&rsaquo;</button>
+                            </div>
+                            <div class="duecal-actions">
+                                <button class="duecal-btn sel" id="adv-duedate-cal-selall" type="button">เลือกทั้งหมด</button>
+                                <button class="duecal-btn clr" id="adv-duedate-cal-clear" type="button">ล้าง</button>
+                            </div>
+                            <div class="duecal-weekdays">
+                                <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+                            </div>
+                            <div class="duecal-grid" id="adv-duedate-cal-grid"></div>
+                            <div class="duecal-summary" id="adv-duedate-cal-summary">ยังไม่ได้เลือกวันที่</div>
+                        </div>
+                    </div>
+
+            </div>
+
+            <div class="overflow-x-auto" id="advance-table-wrapper">
+                <table class="w-full text-left border-collapse border border-slate-300 table-fixed">
+                    <colgroup>
+                        <col style="width: 11%;"> <!-- วันที่ครบกำหนด -->
+                        <col style="width: 9%;">  <!-- เลข TD -->
+                        <col style="width: 11%;"> <!-- เลขที่ IV -->
+                        <col style="width: 14%;"> <!-- รายละเอียด -->
+                        <col style="width: 8%;">  <!-- ประจำเดือน -->
+                        <col style="width: 15%;"> <!-- ลูกหนี้ -->
+                        <col style="width: 10%;"> <!-- สถานะ -->
+                        <col style="width: 22%;"> <!-- จำนวนเงิน Advance 90% -->
+                    </colgroup>
+                    <thead>
+                        <tr class="bg-emerald-600 border-b border-emerald-700 text-white font-bold text-base tracking-wide text-center"
+                            style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap">วันที่ครบกำหนด</th>
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap" style="background:#047857;-webkit-print-color-adjust:exact;print-color-adjust:exact;">เลข TD</th>
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap">เลขที่ IV</th>
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap">รายละเอียด</th>
+                            <th class="p-3 border-r border-emerald-500 whitespace-nowrap">ประจำเดือน</th>
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap">ลูกหนี้</th>
+                            <th class="p-4 border-r border-emerald-500 whitespace-nowrap">สถานะ</th>
+                            <th class="p-4 whitespace-nowrap">ยอด Advance 90%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="advance-table-body" class="text-sm text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="border-t border-slate-100 pt-6 mt-6" id="advance-footer-section">
+                <!-- Pivot Summary -->
+                <div class="flex items-center gap-3 mb-3" data-html2canvas-ignore="true">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">รายละเอียดลูกหนี้ (แยกตาม TD)</span>
+                    <button id="adv-summary-toggle-btn"
+                        class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1 rounded-md flex items-center gap-1.5 transition-all font-bold text-[10px] uppercase tracking-wider border border-emerald-100">
+                        <svg id="adv-summary-toggle-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                        <span id="adv-summary-toggle-lbl">ซ่อนรายละเอียดลูกหนี้</span>
+                    </button>
+                </div>
+                <div id="advance-summary-container" class="mb-6 w-full overflow-x-auto"></div>
+                <div class="flex justify-end">
+                    <div class="flex items-center gap-4 px-8 py-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">ยอดเงินรวม:</span>
+                        <span class="text-2xl font-black text-emerald-600" id="advance-total-amount">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- เปรียบเทียบยอดรับ 90% ตามบริษัท (รายเดือน) -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="cmp-table-area">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">เปรียบเทียบยอดรับ 90% ตามบริษัท</h3>
+                    <span class="text-xs font-medium text-slate-400">รวมยอด Advance 90% แยกตามบริษัท เดือน ม.ค. - ธ.ค.</span>
+                </div>
+                <div class="flex gap-2 items-center" data-html2canvas-ignore="true">
+                    <label for="cmp-year-select" class="text-xs font-bold text-slate-500 uppercase tracking-wider">ปี:</label>
+                    <select id="cmp-year-select"
+                        class="px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                    </select>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="border-collapse border border-slate-300 text-xs shadow-sm w-full" id="cmp-table">
+                    <thead id="cmp-table-thead">
+                        <tr class="bg-violet-600 text-white font-bold" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+                            <th class="p-3 border border-violet-500 text-left whitespace-nowrap" style="min-width:220px;">บริษัท</th>
+                            <!-- Injected: 12 month headers -->
+                        </tr>
+                    </thead>
+                    <tbody id="cmp-table-body" class="text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                    <tfoot id="cmp-table-foot">
+                        <!-- Injected by JS -->
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- เปรียบเทียบยอดคืน 90% ตามบริษัท (รายเดือน ตามเดือนที่กำหนดชำระ) -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="ret-table-area">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">เปรียบเทียบยอดคืน 90% ตามบริษัท</h3>
+                    <span class="text-xs font-medium text-slate-400">รวมยอด Advance 90% แยกตามบริษัท ตามเดือนที่กำหนดชำระ (คืนเงิน) ม.ค. - ธ.ค.</span>
+                </div>
+                <div class="flex gap-2 items-center" data-html2canvas-ignore="true">
+                    <label for="ret-year-select" class="text-xs font-bold text-slate-500 uppercase tracking-wider">ปี:</label>
+                    <select id="ret-year-select"
+                        class="px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                    </select>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="border-collapse border border-slate-300 text-xs shadow-sm w-full" id="ret-table">
+                    <thead id="ret-table-thead">
+                        <tr class="bg-cyan-600 text-white font-bold" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+                            <th class="p-3 border border-cyan-500 text-left whitespace-nowrap" style="min-width:220px;">บริษัท</th>
+                            <!-- Injected: 12 month headers -->
+                        </tr>
+                    </thead>
+                    <tbody id="ret-table-body" class="text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                    <tfoot id="ret-table-foot">
+                        <!-- Injected by JS -->
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- สรุปส่วนต่าง ยอดรับ 90% vs ยอดคืน 90% -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="var-summary-area">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">สรุปส่วนต่าง ยอดรับ 90% vs ยอดคืน 90%</h3>
+                    <span class="text-xs font-medium text-slate-400" id="var-summary-note"></span>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <div class="flex gap-4 text-xs font-bold text-slate-500 mb-2">
+                    <span class="flex items-center gap-1.5"><span class="inline-block" style="width:16px;height:2px;background:#7c3aed;"></span>ยอดรับ 90%</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block" style="width:16px;height:0;border-top:2px dashed #0891b2;"></span>ยอดคืน 90%</span>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="varTrendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="border-collapse border border-slate-300 text-xs shadow-sm w-full" id="var-summary-table">
+                    <thead id="var-summary-thead">
+                        <!-- Injected by JS -->
+                    </thead>
+                    <tbody id="var-summary-body" class="text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ข้อมูลเช็คไม่ผ่าน -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 mb-12" id="cheque-area">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-slate-800 uppercase tracking-wide">ข้อมูลเช็คไม่ผ่าน</h3>
+                    <span class="text-xs font-medium text-slate-400">รวมยอดเงินและค่าธรรมเนียมเช็คตามเลขที่เช็ค</span>
+                </div>
+                <div class="flex gap-2 items-center" data-html2canvas-ignore="true">
+                    <div class="relative inline-block text-left" id="cheque-status-filter-wrapper">
+                        <button id="cheque-status-filter-btn"
+                            class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span id="cheque-status-filter-label">สถานะเช็ค</span>
+                            <svg id="cheque-status-filter-arrow" class="w-3 h-3 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="cheque-status-filter-dropdown"
+                            class="hidden absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 scale-95 opacity-0 transition-all duration-150 origin-top-right">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="border-collapse border border-slate-300 text-xs shadow-sm w-full" id="cheque-table">
+                    <thead>
+                        <tr class="bg-rose-600 text-white font-bold" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+                            <th class="p-3 border border-rose-500 text-left whitespace-nowrap" style="min-width:200px;">บริษัท / ลูกหนี้</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">เลขที่เช็ค</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">วันที่หน้าเช็ค</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">วันที่เลื่อนเช็ค</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">ยอดเงิน (รวม)</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">ค่าธรรมเนียมเช็ค (รวม)</th>
+                            <th class="p-3 border border-rose-500 text-center whitespace-nowrap">สถานะเช็ค</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cheque-table-body" class="text-slate-700">
+                        <!-- Injected by JS -->
+                    </tbody>
+                    <tfoot id="cheque-table-foot">
+                        <!-- Injected by JS -->
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Daily PDF Report Modal -->
+    <div id="pdfModal" class="bsl-pdf-overlay">
+        <div class="bsl-pdf-sheet">
+            <div class="bsl-pdf-header">
+                <div class="bsl-pdf-title">📄 รายงานครบกำหนดชำระประจำวัน</div>
+                <button class="bsl-pdf-close" id="closePdfModal">×</button>
+            </div>
+            <div class="bsl-pdf-controls">
+                <div class="bsl-cal-topbar">
+                    <button class="bsl-cal-nav" id="calPrev">‹</button>
+                    <select class="bsl-cal-sel" id="calMonthSel"></select>
+                    <select class="bsl-cal-sel" id="calYearSel"></select>
+                    <button class="bsl-cal-nav" id="calNext">›</button>
+                    <button class="bsl-cal-selall" id="calSelAll">เลือกทั้งหมด</button>
+                    <button class="bsl-cal-clear" id="calClear">ล้าง</button>
+                </div>
+                <div class="bsl-cal-weekdays">
+                    <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+                </div>
+                <div class="bsl-cal-grid" id="pdfCalGrid"></div>
+                <div class="bsl-cal-selected-bar" id="calSelectedBar">ยังไม่ได้เลือกวันที่</div>
+                <button class="bsl-btn-generate-pdf" id="btnGeneratePdf">
+                    🪄 สร้าง PDF รายงาน
+                </button>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="script.js"></script>
+    <!-- Custom Script -->
+    <script src="script.js?v=3.1"></script>
 </body>
 
 </html>
