@@ -390,12 +390,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const refreshBtn = document.getElementById('btnRefresh');
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
+        refreshBtn.addEventListener('click', async () => {
+            if (refreshBtn.disabled) return; // กันกดซ้ำระหว่างกำลังโหลด
             allData = [];
             checkReturnData = [];
-            const cards = document.getElementById('cardsContainer');
-            if (cards) cards.innerHTML = '<div style="text-align:center; padding: 40px; color: #94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i><br>กำลังโหลดข้อมูลใหม่...</div>';
-            fetchData(true);
+            refreshBtn.disabled = true;
+            const icon = refreshBtn.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+            setStatus('กำลังรีเฟรชข้อมูล...', false);
+            try {
+                await fetchData(true);
+            } finally {
+                refreshBtn.disabled = false;
+                if (icon) icon.classList.remove('fa-spin');
+            }
         });
     }
 
@@ -521,9 +529,17 @@ function buildCheckReturnFromPaymentLog() {
         return fee > 0;
     });
 }
-async function fetchData(forceRefresh = false) {
-    const cardsContainer = document.getElementById('cardsContainer');
 
+// แสดงสถานะการโหลดข้อมูลที่แถบ "อัปเดตล่าสุด" ของหน้า
+// (เดิมโค้ดเขียนสถานะ/error ลงใน #cardsContainer ซึ่งไม่มี element นี้อยู่จริงใน index.html
+//  ทำให้ตอนกดปุ่มรีเฟรชแล้วเกิด error ผู้ใช้จะไม่เห็นอะไรเลย เหมือนปุ่มไม่ทำงาน)
+function setStatus(text, isError) {
+    const el = document.getElementById('lastUpdated');
+    if (!el) return;
+    el.innerHTML = `<i class="fas fa-circle" style="color:${isError ? '#f43f5e' : '#22c55e'}"></i> <span>${text}</span>`;
+}
+
+async function fetchData(forceRefresh = false) {
     // ลองโหลดจาก localStorage cache ก่อน เพื่อให้ UI ขึ้นทันที
     let hadCache = false;
     if (!forceRefresh) {
@@ -538,8 +554,8 @@ async function fetchData(forceRefresh = false) {
         } catch (e) { console.warn('Cache read failed:', e); }
     }
 
-    if (!hadCache && cardsContainer) {
-        cardsContainer.innerHTML = '<div style="text-align:center; padding: 40px; color: #94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i><br>กำลังโหลดข้อมูลจาก Google Sheets...</div>';
+    if (!hadCache) {
+        setStatus('กำลังโหลดข้อมูลจาก Google Sheets...', false);
     }
 
     try {
@@ -586,12 +602,8 @@ async function fetchData(forceRefresh = false) {
         }
 
         if (dataArray.length === 0) {
-            if (cardsContainer) {
-                cardsContainer.innerHTML = `<div style="text-align:center; color:#f59e0b; padding: 20px;">
-                    ไม่พบข้อมูลใน response<br>
-                    <small style="color:#94a3b8;">กด F12 → แท็บ Console เพื่อดู response ที่ได้รับจริง</small>
-                </div>`;
-            }
+            setStatus('ไม่พบข้อมูลใน response — กด F12 ดู Console', true);
+            showDebugInfo(rawResponse);
             return;
         }
 
@@ -621,21 +633,17 @@ async function fetchData(forceRefresh = false) {
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: allData }));
             } catch (e) { console.warn('Cache write failed:', e); }
         } else {
-            if (cardsContainer) cardsContainer.innerHTML = '<div style="text-align:center; padding: 20px;">ไม่พบข้อมูล (ทุกแถวว่าง)</div>';
+            setStatus('ไม่พบข้อมูล (ทุกแถวว่าง)', true);
             showDebugInfo(rawResponse);
         }
     } catch (error) {
         console.error('Fetch Error:', error);
-        // ถ้ามีแคชแสดงอยู่แล้ว ไม่ต้องทับ UI ด้วย error
-        if (!hadCache && cardsContainer) {
-            cardsContainer.innerHTML = `<div style="text-align:center; color:#f43f5e; padding: 20px;">
-                เกิดข้อผิดพลาด: ${error.message}<br>
-                <small style="color:#94a3b8;">ลองตรวจสอบ Apps Script หรือสิทธิ์การเข้าถึง URL</small>
-            </div>`;
+        // ถ้ามีแคชแสดงอยู่แล้ว ไม่ต้องทับ UI ด้วย error แต่ยังต้องแจ้งสถานะเสมอ
+        if (!hadCache) {
+            setStatus(`เกิดข้อผิดพลาด: ${error.message}`, true);
             showDebugInfo(error.message);
         } else {
-            const lastUpdated = document.getElementById('lastUpdated');
-            if (lastUpdated) lastUpdated.innerHTML = `<i class="fas fa-circle" style="color:#f59e0b"></i> <span>โหลดสด ๆ ไม่สำเร็จ · ใช้ข้อมูลแคช</span>`;
+            setStatus('โหลดสด ๆ ไม่สำเร็จ · ใช้ข้อมูลแคช', true);
         }
     }
 }
