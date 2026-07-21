@@ -230,6 +230,7 @@ function showDetailModal(item) {
         { label: 'ชื่อลิสซิ่ง', keys: ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท'] },
         { label: 'เลขสัญญา', keys: ['เลขสัญญา', 'contract'] },
         { label: 'Air Code', keys: ['Air Code', 'airCode'] },
+        { label: 'Cost Center', keys: ['Cost center', 'costCenter', 'CostCenter'] },
         { label: 'งวดที่', keys: ['งวดที่', 'installment'] },
         { label: 'กำหนดชำระ', keys: ['กำหนดชำระ', 'dueDate'], isDate: true },
         { label: 'สถานะ', keys: ['สถานะ', 'status'] },
