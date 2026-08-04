@@ -248,7 +248,7 @@ function exportTablePDF() {
     if (!table) return;
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { alert('กรุณาอนุญาต popup'); return; }
-    const title = `รายการชำระเงิน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
+    const title = `รายการชำระเงิน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}`;
 
     // Clone table แล้วเอาคอลัมน์สุดท้าย (ปุ่มดูรายละเอียด) ออก พร้อมล้าง inline width
     const clone = table.cloneNode(true);
@@ -339,7 +339,7 @@ function exportTablePDF() {
             <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
         </div>
         <div class="body">
-        ${buildThaiDrillHeader(`รายการชำระเงิน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span> ประจำวันที่ <b style="color:#b91c1c;font-weight:800;">${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}</b>`, '')}
+        ${buildThaiDrillHeader(`รายการชำระเงิน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span> ประจำวันที่ <b style="color:#b91c1c;font-weight:800;">${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}</b>`, '')}
         <table>
             <colgroup>
                 <col><col><col><col><col><col><col><col><col>
@@ -841,7 +841,7 @@ function showStatusModal(statusType) {
 
     const dataMap = { overdue: overdueData, pending: pendingData, currentMonth: currentMonthData, paid: paidData };
     const data = dataMap[statusType] || [];
-    const thaiMonth = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+    const thaiMonth = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric', calendar: 'gregory' });
     const titleMap = {
         overdue: 'ค่างวดเกินกำหนด',
         pending: 'ยังไม่ถึงกำหนดชำระ',
@@ -891,7 +891,7 @@ function showStatusModal(statusType) {
         const val = getAnyValue(item, col.keys);
         if (col.isDate) {
             const d = parseDueDate(val);
-            const display = d ? d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : (val || '-');
+            const display = d ? d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' }) : (val || '-');
             return `<td style="text-align:center;white-space:nowrap">${display}</td>`;
         }
         if (col.isAmount) {
@@ -984,7 +984,7 @@ function showStatusModal(statusType) {
             const contractAccordions = contracts.map(([cname, cdata], ci) => {
                 const itemRows = cdata.items.map((item, ii) => {
                     const d = parseDueDate(getAnyValue(item, ['กำหนดชำระ','dueDate']));
-                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
+                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', calendar: 'gregory' }) : '-';
                     const air  = getAnyValue(item, ['Air Code','airCode','AirCode','air code']) || '-';
                     const cc   = getAnyValue(item, ['Cost center','costCenter','CostCenter','cost center']) || '-';
                     const inst = getAnyValue(item, ['งวดที่','installment','งวด']) || '-';
@@ -1144,7 +1144,7 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                     const itemRows = cdata.items.map((item, ii) => {
                         const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
                         const d = parseDueDate(rawDate);
-                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : (rawDate || '-');
+                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', calendar: 'gregory' }) : (rawDate || '-');
                         const air = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
                         const cc = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']) || '-';
                         const inst = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
@@ -1240,7 +1240,7 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
             </table>`;
     }
 
-    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' });
 
     win.document.write(`<!DOCTYPE html><html lang="th"><head>
         <meta charset="UTF-8"><title>${title}</title>
@@ -1344,11 +1344,11 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         if (!val) return '';
         const d = parseDueDate ? parseDueDate(val) : new Date(val);
         if (!d || isNaN(d)) return String(val);
-        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' });
     };
 
     const now = new Date();
-    const reportDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const reportDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' });
     const fileName = `${title.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]/g, '_')}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`;
 
     // สร้างข้อมูลแถว
@@ -1595,7 +1595,7 @@ function formatDate(dateStr) {
     // ใช้ parseDueDate() ตัวเดียวกับหน้าอื่น (รองรับทั้ง Date object, ISO string, และข้อความ DD/MM/YYYY)
     // เดิมฟังก์ชันนี้ใช้ new Date(dateStr) ตรงๆ ซึ่ง parse ข้อความ DD/MM/YYYY ไม่ได้ ทำให้บางแถวโชว์วันที่ดิบไม่ถูกจัดรูปแบบ
     const date = parseDueDate(dateStr);
-    return date ? date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : dateStr;
+    return date ? date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' }) : dateStr;
 }
 
 function initFilterOptions(data) {
@@ -1936,7 +1936,7 @@ function openPDFModal() {
 
 function buildReportHTML(selectedDatesArr, dayData) {
     const dateStr = selectedDatesArr.length === 1
-        ? selectedDatesArr[0].toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+        ? selectedDatesArr[0].toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' })
         : selectedDatesArr.map(d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })).join(', ');
     const printedAt = new Date().toLocaleString('th-TH');
 
@@ -2613,7 +2613,7 @@ function exportNearEndPDF() {
     var qualified = buildNearEndData(limit);
     var leasingEntries = Object.entries(qualified).sort(function(a,b){ return b[1].sum - a[1].sum; });
     if (leasingEntries.length === 0) { alert('ไม่พบสัญญาในช่วงที่เลือก'); return; }
-    var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+    var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric', calendar: 'gregory' });
     var fmtN = function(n) { return n.toLocaleString(undefined, {minimumFractionDigits:2}); };
     var totalContracts = leasingEntries.reduce(function(s,e){ return s + e[1].rows.length; }, 0);
     var grandTotal = leasingEntries.reduce(function(s,e){ return s + e[1].sum; }, 0);
@@ -2710,7 +2710,7 @@ function exportCheckReturnPDF() {
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { alert('กรุณาอนุญาต popup'); return; }
 
-    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
+    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}`;
 
     const clone = table.cloneNode(true);
     clone.querySelectorAll('th, td').forEach(el => {
