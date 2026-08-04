@@ -1592,8 +1592,10 @@ function showDetailModal(item) {
 
 function formatDate(dateStr) {
     if (!dateStr || dateStr === '-') return '-';
-    const date = new Date(dateStr);
-    return isNaN(date) ? dateStr : date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    // ใช้ parseDueDate() ตัวเดียวกับหน้าอื่น (รองรับทั้ง Date object, ISO string, และข้อความ DD/MM/YYYY)
+    // เดิมฟังก์ชันนี้ใช้ new Date(dateStr) ตรงๆ ซึ่ง parse ข้อความ DD/MM/YYYY ไม่ได้ ทำให้บางแถวโชว์วันที่ดิบไม่ถูกจัดรูปแบบ
+    const date = parseDueDate(dateStr);
+    return date ? date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : dateStr;
 }
 
 function initFilterOptions(data) {
