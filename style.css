@@ -222,6 +222,7 @@ body {
 .kpi-note-warning { color: var(--warning) !important; }
 .kpi-note-teal    { color: var(--accent-teal) !important; }
 .kpi-note-success { color: var(--success) !important; }
+.kpi-note-blue    { color: var(--accent) !important; }
 
 /* KPI detail button */
 .btn-kpi-detail {
