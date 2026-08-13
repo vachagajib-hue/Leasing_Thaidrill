@@ -196,7 +196,6 @@ function initTableFilters(data) {
     const years = new Set();
     const leasings = new Set();
     const aircodes = new Set();
-    const costcenters = new Set();
     const statuses = new Set();
     data.forEach(item => {
         const d = new Date(getAnyValue(item, ['กำหนดชำระ', 'dueDate']));
@@ -205,8 +204,6 @@ function initTableFilters(data) {
         if (l && l !== '') leasings.add(l);
         const a = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']);
         if (a && a !== '') aircodes.add(String(a).trim());
-        const cc = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']);
-        if (cc && cc !== '') costcenters.add(String(cc).trim());
         const s = getAnyValue(item, ['สถานะ', 'status']);
         if (s && s !== '') statuses.add(s);
     });
@@ -216,7 +213,6 @@ function initTableFilters(data) {
     initMultiSelect('table-filter-month', thaiMonths.map((m, i) => ({ value: String(i), label: m })));
     initMultiSelect('table-filter-leasing', Array.from(leasings).sort());
     initMultiSelect('table-filter-aircode', Array.from(aircodes).sort());
-    initMultiSelect('table-filter-costcenter', Array.from(costcenters).sort());
     initMultiSelect('table-filter-status', Array.from(statuses).sort());
 }
 
@@ -248,7 +244,7 @@ function exportTablePDF() {
     if (!table) return;
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { alert('กรุณาอนุญาต popup'); return; }
-    const title = `รายการชำระเงิน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}`;
+    const title = `รายการชำระเงิน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
 
     // Clone table แล้วเอาคอลัมน์สุดท้าย (ปุ่มดูรายละเอียด) ออก พร้อมล้าง inline width
     const clone = table.cloneNode(true);
@@ -266,7 +262,7 @@ function exportTablePDF() {
     let grandTotal = 0;
     let rowCount = 0;
     clone.querySelectorAll('tbody tr').forEach(tr => {
-        const amountCell = tr.children[8];
+        const amountCell = tr.children[7];
         if (!amountCell) return;
         const num = parseFloat((amountCell.textContent || '').replace(/[^0-9.\-]/g, ''));
         if (!isNaN(num)) grandTotal += num;
@@ -281,7 +277,7 @@ function exportTablePDF() {
         clone.appendChild(tfoot);
     }
     tfoot.innerHTML = `<tr class="total-row">
-        <td colspan="8" style="text-align:right;font-weight:700;white-space:nowrap">ยอดรวม (${rowCount.toLocaleString()} รายการ)</td>
+        <td colspan="7" style="text-align:right;font-weight:700;white-space:nowrap">ยอดรวม (${rowCount.toLocaleString()} รายการ)</td>
         <td style="text-align:right;font-weight:700;white-space:nowrap">${totalStr}</td>
     </tr>`;
 
@@ -314,23 +310,21 @@ function exportTablePDF() {
             tfoot tr.total-row td { background:#dbeafe!important; color:#0f172a; font-size:10px; border-top:2px solid #1d4ed8; }
             tfoot { display: table-row-group; }
             @media print { tfoot tr.total-row td { background:#dbeafe!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-            /* กำหนดสัดส่วนคอลัมน์ให้พอดี A4 แนวตั้ง: # | กำหนดชำระ | ชื่อลิสซิ่ง | เลขสัญญา | Air Code | Cost Center | งวด | สถานะ | ชำระเงิน */
-            colgroup col:nth-child(1) { width: 4%; }
-            colgroup col:nth-child(2) { width: 9%; }
-            colgroup col:nth-child(3) { width: 24%; }
-            colgroup col:nth-child(4) { width: 13%; }
-            colgroup col:nth-child(5) { width: 9%; }
-            colgroup col:nth-child(6) { width: 10%; }
-            colgroup col:nth-child(7) { width: 6%; }
-            colgroup col:nth-child(8) { width: 9%; }
-            colgroup col:nth-child(9) { width: 16%; }
+            /* กำหนดสัดส่วนคอลัมน์ให้พอดี A4 แนวตั้ง: # | กำหนดชำระ | ชื่อลิสซิ่ง | เลขสัญญา | Air Code | งวด | สถานะ | ชำระเงิน */
+            colgroup col:nth-child(1) { width: 5%; }
+            colgroup col:nth-child(2) { width: 10%; }
+            colgroup col:nth-child(3) { width: 32%; }
+            colgroup col:nth-child(4) { width: 15%; }
+            colgroup col:nth-child(5) { width: 11%; }
+            colgroup col:nth-child(6) { width: 6%; }
+            colgroup col:nth-child(7) { width: 9%; }
+            colgroup col:nth-child(8) { width: 12%; }
             td:nth-child(1), th:nth-child(1),
             td:nth-child(2), th:nth-child(2),
             td:nth-child(5), th:nth-child(5),
             td:nth-child(6), th:nth-child(6),
-            td:nth-child(7), th:nth-child(7),
-            td:nth-child(8), th:nth-child(8) { text-align:center; }
-            td:nth-child(9), th:nth-child(9) { text-align:right; }
+            td:nth-child(7), th:nth-child(7) { text-align:center; }
+            td:nth-child(8), th:nth-child(8) { text-align:right; }
             /* บีบ badge สถานะให้ดูสะอาดในงานพิมพ์ */
             td .status-badge, td span[class*="status"] { display:inline-block; padding:2px 6px; border-radius:4px; font-size:8px; font-weight:600; }
         </style></head><body>
@@ -339,10 +333,10 @@ function exportTablePDF() {
             <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
         </div>
         <div class="body">
-        ${buildThaiDrillHeader(`รายการชำระเงิน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span> ประจำวันที่ <b style="color:#b91c1c;font-weight:800;">${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}</b>`, '')}
+        ${buildThaiDrillHeader(`รายการชำระเงิน <span style="color:#b91c1c;font-weight:800;font-style:italic;">ThaiDrill</span> ประจำวันที่ <b style="color:#b91c1c;font-weight:800;">${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}</b>`, '')}
         <table>
             <colgroup>
-                <col><col><col><col><col><col><col><col><col>
+                <col><col><col><col><col><col><col><col>
             </colgroup>
             ${clone.innerHTML}
         </table>
@@ -380,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         document.querySelectorAll('.table-wrapper').forEach(enableClickToScroll);
     }, 100);
-    const filters = ['filter-year', 'filter-month', 'filter-date', 'filter-leasing', 'filter-aircode', 'filter-costcenter', 'filter-status'];
+    const filters = ['filter-year', 'filter-month', 'filter-date', 'filter-leasing', 'filter-aircode', 'filter-status'];
     const debouncedApplyFilters = debounce(applyFilters, 220);
     filters.forEach(id => {
         const el = document.getElementById(id);
@@ -436,8 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tableFilterLeasing) tableFilterLeasing.addEventListener('change', debouncedRenderTable);
     const tableFilterAircode = document.getElementById('table-filter-aircode');
     if (tableFilterAircode) tableFilterAircode.addEventListener('change', debouncedRenderTable);
-    const tableFilterCostCenter = document.getElementById('table-filter-costcenter');
-    if (tableFilterCostCenter) tableFilterCostCenter.addEventListener('change', debouncedRenderTable);
     const tableFilterStatus = document.getElementById('table-filter-status');
     if (tableFilterStatus) tableFilterStatus.addEventListener('change', debouncedRenderTable);
     const searchInput = document.getElementById('searchInput');
@@ -477,6 +469,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnPaidDetail) btnPaidDetail.addEventListener('click', () => showStatusModal('paid'));
     const btnCurrentMonthDetail = document.getElementById('btnCurrentMonthDetail');
     if (btnCurrentMonthDetail) btnCurrentMonthDetail.addEventListener('click', () => showStatusModal('currentMonth'));
+    const btnTotalDetail = document.getElementById('btnTotalDetail');
+    if (btnTotalDetail) btnTotalDetail.addEventListener('click', () => showStatusModal('total'));
 
     const statusModal = document.getElementById('statusModal');
     const closeStatusModal = document.getElementById('closeStatusModal');
@@ -783,6 +777,8 @@ function updateKPIs(data) {
         animateNumber(totalEl, parseFloat(totalEl.dataset.currentValue) || 0, totalAmount, 1000, true);
         totalEl.dataset.currentValue = totalAmount;
     }
+    const totalCountEl = document.getElementById('total-count');
+    if (totalCountEl) totalCountEl.innerHTML = `<i class="fas fa-list"></i> ${data.length.toLocaleString()} รายการ`;
 
     const overdueAmtEl = document.getElementById('overdue-amount');
     if (overdueAmtEl) {
@@ -839,26 +835,29 @@ function showStatusModal(statusType) {
     const bodyEl = document.getElementById('statusModalBody');
     if (!modal || !titleEl || !bodyEl) return;
 
-    const dataMap = { overdue: overdueData, pending: pendingData, currentMonth: currentMonthData, paid: paidData };
+    const dataMap = { overdue: overdueData, pending: pendingData, currentMonth: currentMonthData, paid: paidData, total: allData };
     const data = dataMap[statusType] || [];
-    const thaiMonth = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric', calendar: 'gregory' });
+    const thaiMonth = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     const titleMap = {
         overdue: 'ค่างวดเกินกำหนด',
         pending: 'ยังไม่ถึงกำหนดชำระ',
         currentMonth: `ยอดค่างวดเดือนปัจจุบัน (${thaiMonth})`,
-        paid: 'ยอดที่ชำระแล้ว'
+        paid: 'ยอดที่ชำระแล้ว',
+        total: 'ยอดค่างวดรวมทั้งหมด'
     };
     const iconMap = {
         overdue: 'fas fa-triangle-exclamation',
         pending: 'fas fa-hourglass-half',
         currentMonth: 'fas fa-calendar-check',
-        paid: 'fas fa-circle-check'
+        paid: 'fas fa-circle-check',
+        total: 'fas fa-baht-sign'
     };
     const colorMap = {
         overdue: 'color:var(--danger)',
         pending: 'color:var(--warning)',
         currentMonth: 'color:var(--accent-teal)',
-        paid: 'color:var(--success)'
+        paid: 'color:var(--success)',
+        total: 'color:var(--accent)'
     };
     const title = titleMap[statusType];
     const iconClass = iconMap[statusType];
@@ -877,7 +876,6 @@ function showStatusModal(statusType) {
         { label: 'ชื่อลิสซิ่ง', keys: ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท'], w: '' },
         { label: 'เลขสัญญา', keys: ['เลขสัญญา', 'contract', 'สัญญา'], w: '130px' },
         { label: 'Air Code', keys: ['Air Code', 'airCode', 'AirCode'], center: true, w: '90px' },
-        { label: 'Cost Center', keys: ['Cost center', 'costCenter', 'CostCenter'], center: true, w: '90px' },
         { label: 'งวดที่', keys: ['งวดที่', 'installment', 'งวด'], center: true, w: '60px' },
         { label: 'ค่างวดประจำ', keys: ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด'], isAmount: true, w: '120px' },
         { label: 'สถานะ', keys: ['สถานะ', 'status'], isStatus: true, w: '110px' },
@@ -891,7 +889,7 @@ function showStatusModal(statusType) {
         const val = getAnyValue(item, col.keys);
         if (col.isDate) {
             const d = parseDueDate(val);
-            const display = d ? d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' }) : (val || '-');
+            const display = d ? d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : (val || '-');
             return `<td style="text-align:center;white-space:nowrap">${display}</td>`;
         }
         if (col.isAmount) {
@@ -984,9 +982,8 @@ function showStatusModal(statusType) {
             const contractAccordions = contracts.map(([cname, cdata], ci) => {
                 const itemRows = cdata.items.map((item, ii) => {
                     const d = parseDueDate(getAnyValue(item, ['กำหนดชำระ','dueDate']));
-                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', calendar: 'gregory' }) : '-';
+                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
                     const air  = getAnyValue(item, ['Air Code','airCode','AirCode','air code']) || '-';
-                    const cc   = getAnyValue(item, ['Cost center','costCenter','CostCenter','cost center']) || '-';
                     const inst = getAnyValue(item, ['งวดที่','installment','งวด']) || '-';
                     const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ','amount','ยอดเงิน','ยอดชำระ','ยอด']));
                     const st   = (getAnyValue(item, ['สถานะ','status']) || '-').toString();
@@ -995,14 +992,13 @@ function showStatusModal(statusType) {
                         <td style="padding:4px 8px;text-align:center;color:var(--text-muted)">${ii+1}</td>
                         <td style="padding:4px 8px;text-align:center;white-space:nowrap">${dateDisp}</td>
                         <td style="padding:4px 8px;text-align:center;color:var(--text-dim)">${air}</td>
-                        <td style="padding:4px 8px;text-align:center;color:var(--text-dim)">${cc}</td>
                         <td style="padding:4px 8px;text-align:center">${inst}</td>
                         <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--accent)">${amt2.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                         <td style="padding:4px 8px;text-align:center;font-weight:700;font-size:11px;${sc}">${st}</td>
                     </tr>`;
                 }).join('');
                 const subtotal = `<tr style="border-top:1px solid rgba(99,102,241,0.3);background:rgba(99,102,241,0.07)">
-                    <td colspan="5" style="padding:4px 8px;text-align:right;font-size:11px;color:var(--text-dim)">รวมสัญญานี้</td>
+                    <td colspan="4" style="padding:4px 8px;text-align:right;font-size:11px;color:var(--text-dim)">รวมสัญญานี้</td>
                     <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--accent)">${cdata.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                     <td></td>
                 </tr>`;
@@ -1019,7 +1015,6 @@ function showStatusModal(statusType) {
                                 <th style="width:40px;text-align:center">#</th>
                                 <th style="text-align:center">กำหนดชำระ</th>
                                 <th style="text-align:center">Air Code</th>
-                                <th style="text-align:center">Cost Center</th>
                                 <th style="text-align:center;width:60px">งวดที่</th>
                                 <th style="text-align:right">ค่างวดประจำ</th>
                                 <th style="text-align:center">สถานะ</th>
@@ -1144,9 +1139,8 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                     const itemRows = cdata.items.map((item, ii) => {
                         const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
                         const d = parseDueDate(rawDate);
-                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', calendar: 'gregory' }) : (rawDate || '-');
+                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : (rawDate || '-');
                         const air = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
-                        const cc = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']) || '-';
                         const inst = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
                         const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
                         const st = getAnyValue(item, ['สถานะ', 'status']) || '-';
@@ -1155,14 +1149,13 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                             <td style="text-align:center;color:#9ca3af">${ii+1}</td>
                             <td style="text-align:center;white-space:nowrap">${dateDisp}</td>
                             <td style="text-align:center;color:#6b7280">${air}</td>
-                            <td style="text-align:center;color:#6b7280">${cc}</td>
                             <td style="text-align:center">${inst}</td>
                             <td style="text-align:right;font-weight:700;color:#1d4ed8">${amt2.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                             <td style="text-align:center;font-weight:700;font-size:10px;${sc}">${st}</td>
                         </tr>`;
                     }).join('');
                     const subtotal = `<tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
-                        <td colspan="5" style="text-align:right;font-size:10px;color:#6b7280;padding:4px 6px">รวมสัญญานี้</td>
+                        <td colspan="4" style="text-align:right;font-size:10px;color:#6b7280;padding:4px 6px">รวมสัญญานี้</td>
                         <td style="text-align:right;font-weight:700;color:#1d4ed8;padding:4px 6px">${cdata.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                         <td></td>
                     </tr>`;
@@ -1174,11 +1167,11 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                         </div>
                         <table>
                             <colgroup>
-                                <col style="width:5%"><col style="width:11%"><col style="width:10%">
-                                <col style="width:10%"><col style="width:8%"><col style="width:13%"><col style="width:11%">
+                                <col style="width:5%"><col style="width:12%"><col style="width:12%">
+                                <col style="width:8%"><col style="width:14%"><col style="width:12%">
                             </colgroup>
                             <thead><tr>
-                                <th>#</th><th>กำหนดชำระ</th><th>Air Code</th><th>Cost Center</th>
+                                <th>#</th><th>กำหนดชำระ</th><th>Air Code</th>
                                 <th>งวดที่</th><th style="text-align:right">ค่างวดประจำ</th><th>สถานะ</th>
                             </tr></thead>
                             <tbody>${itemRows}${subtotal}</tbody>
@@ -1240,7 +1233,7 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
             </table>`;
     }
 
-    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' });
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
     win.document.write(`<!DOCTYPE html><html lang="th"><head>
         <meta charset="UTF-8"><title>${title}</title>
@@ -1344,11 +1337,11 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         if (!val) return '';
         const d = parseDueDate ? parseDueDate(val) : new Date(val);
         if (!d || isNaN(d)) return String(val);
-        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' });
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
     };
 
     const now = new Date();
-    const reportDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' });
+    const reportDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     const fileName = `${title.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]/g, '_')}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`;
 
     // สร้างข้อมูลแถว
@@ -1357,7 +1350,6 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         const leasing  = getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '-';
         const contract = getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '-';
         const airCode  = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
-        const costCenter = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']) || '-';
         const instNo   = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
         const amount   = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
         const status   = getAnyValue(item, ['สถานะ', 'status']) || '-';
@@ -1367,7 +1359,6 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
             'ชื่อลิสซิ่ง': leasing,
             'เลขสัญญา': contract,
             'AIR CODE': airCode,
-            'COST CENTER': costCenter,
             'งวดที่': instNo,
             'ค่างวดประจำ (บาท)': amount,
             'สถานะ': status
@@ -1382,7 +1373,6 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         'ชื่อลิสซิ่ง': `รวมทั้งหมด ${data.length} รายการ`,
         'เลขสัญญา': '',
         'AIR CODE': '',
-        'COST CENTER': '',
         'งวดที่': '',
         'ค่างวดประจำ (บาท)': totalAmt,
         'สถานะ': ''
@@ -1398,7 +1388,6 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         { wch: 40 },  // ชื่อลิสซิ่ง
         { wch: 22 },  // เลขสัญญา
         { wch: 12 },  // AIR CODE
-        { wch: 14 },  // COST CENTER
         { wch: 10 },  // งวดที่
         { wch: 20 },  // ค่างวดประจำ
         { wch: 16 },  // สถานะ
@@ -1414,11 +1403,11 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
 
     // ย้าย data rows ลงมา 4 แถว (เพราะเพิ่ม header)
     const dataWithHeader = [
-        ['บริษัท รถเจาะไทย จำกัด', '', '', '', '', '', '', '', ''],
-        [title, '', '', '', '', '', '', '', ''],
-        [`วันที่ออกรายงาน: ${reportDate}`, '', '', '', '', '', '', '', ''],
+        ['บริษัท รถเจาะไทย จำกัด', '', '', '', '', '', '', ''],
+        [title, '', '', '', '', '', '', ''],
+        [`วันที่ออกรายงาน: ${reportDate}`, '', '', '', '', '', '', ''],
         [],
-        ['ลำดับ', 'กำหนดชำระ', 'ชื่อลิสซิ่ง', 'เลขสัญญา', 'AIR CODE', 'COST CENTER', 'งวดที่', 'ค่างวดประจำ (บาท)', 'สถานะ'],
+        ['ลำดับ', 'กำหนดชำระ', 'ชื่อลิสซิ่ง', 'เลขสัญญา', 'AIR CODE', 'งวดที่', 'ค่างวดประจำ (บาท)', 'สถานะ'],
         ...data.map((item, idx) => {
             const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
             return [
@@ -1427,24 +1416,23 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
                 getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '-',
                 getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '-',
                 getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-',
-                getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']) || '-',
                 getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-',
                 cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด'])),
                 getAnyValue(item, ['สถานะ', 'status']) || '-'
             ];
         }),
         [],
-        ['', '', `รวมทั้งหมด ${data.length} รายการ`, '', '', '', '', totalAmt, '']
+        ['', '', `รวมทั้งหมด ${data.length} รายการ`, '', '', '', totalAmt, '']
     ];
 
     const ws2 = XLSX.utils.aoa_to_sheet(dataWithHeader);
     ws2['!cols'] = [
         { wch: 6 }, { wch: 18 }, { wch: 40 }, { wch: 22 },
-        { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 16 }
+        { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 16 }
     ];
 
-    // จัด format number คอลัมน์ค่างวด (col H = index 7, เริ่มแถว 6 = index 5)
-    const amtColLetter = 'H';
+    // จัด format number คอลัมน์ค่างวด (col G = index 6, เริ่มแถว 6 = index 5)
+    const amtColLetter = 'G';
     const startRow = 6; // row 1-4=header, 5=title row, 6=data start
     for (let r = startRow; r < startRow + data.length; r++) {
         const cellRef = `${amtColLetter}${r}`;
@@ -1481,7 +1469,6 @@ function renderTable(data) {
     const tMonths = getMultiSelectSelected('table-filter-month');
     const tLeasings = getMultiSelectSelected('table-filter-leasing');
     const tAircodes = getMultiSelectSelected('table-filter-aircode');
-    const tCostCenters = getMultiSelectSelected('table-filter-costcenter');
     const tStatuses = getMultiSelectSelected('table-filter-status');
     const tSearch = (document.getElementById('searchInput')?.value || '').toLowerCase();
 
@@ -1491,10 +1478,9 @@ function renderTable(data) {
         const matchM = !tMonths.size || (!isNaN(d) && tMonths.has(d.getMonth().toString()));
         const matchL = !tLeasings.size || tLeasings.has(String(getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท'])));
         const matchAir = !tAircodes.size || tAircodes.has(String(getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code'])));
-        const matchCC = !tCostCenters.size || tCostCenters.has(String(getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center'])));
         const matchSt = !tStatuses.size || tStatuses.has(String(getAnyValue(item, ['สถานะ', 'status'])));
         const matchS = !tSearch || Object.values(item).some(v => v && v.toString().toLowerCase().includes(tSearch));
-        return matchY && matchM && matchL && matchAir && matchCC && matchSt && matchS;
+        return matchY && matchM && matchL && matchAir && matchSt && matchS;
     });
 
     if (countBadge) countBadge.textContent = `${filtered.length.toLocaleString()} รายการ`;
@@ -1506,7 +1492,6 @@ function renderTable(data) {
         const leasing  = getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing', 'บริษัท']) || '-';
         const contract = getAnyValue(item, ['เลขสัญญา', 'contract', 'สัญญา']) || '-';
         const aircode  = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
-        const costCenter = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']) || '-';
         const inst     = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
         const amount   = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
         const status   = getAnyValue(item, ['สถานะ', 'status']) || '-';
@@ -1522,7 +1507,6 @@ function renderTable(data) {
             <td>${leasing}</td>
             <td style="color:var(--text-dim)">${contract}</td>
             <td class="col-center">${aircode}</td>
-            <td class="col-center">${costCenter}</td>
             <td class="col-center">${inst}</td>
             <td class="col-center"><span class="status-badge ${badgeClass}">${status}</span></td>
             <td class="col-amount">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -1536,8 +1520,7 @@ function renderTable(data) {
             <th style="text-align:center;width:110px">กำหนดชำระ</th>
             <th style="width:220px">ชื่อลิสซิ่ง</th>
             <th style="width:160px">เลขสัญญา</th>
-            <th style="text-align:center;width:130px">Air Code</th>
-            <th style="text-align:center;width:130px">Cost Center</th>
+            <th style="text-align:center;width:160px">Air Code</th>
             <th style="text-align:center;width:70px">งวดที่</th>
             <th style="text-align:center;width:120px">สถานะ</th>
             <th style="text-align:right;width:140px">ชำระเงิน</th>
@@ -1562,7 +1545,6 @@ function showDetailModal(item) {
         { label: 'เลขสัญญา', keys: ['เลขสัญญา', 'contract', 'สัญญา'] },
         { label: 'ทะเบียนรถ', keys: ['ทะเบียนรถ', 'plate', 'ทะเบียน'] },
         { label: 'Air Code', keys: ['Air Code', 'airCode'] },
-        { label: 'Cost Center', keys: ['Cost center', 'costCenter', 'CostCenter'] },
         { label: 'งวดที่', keys: ['งวดที่', 'installment', 'งวด'] },
         { label: 'สถานะ', keys: ['สถานะ', 'status', 'state'] },
         { label: 'ค่างวดประจำ', keys: ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด', 'ชำระ', 'เงิน', 'sum'], isAmount: true },
@@ -1592,10 +1574,8 @@ function showDetailModal(item) {
 
 function formatDate(dateStr) {
     if (!dateStr || dateStr === '-') return '-';
-    // ใช้ parseDueDate() ตัวเดียวกับหน้าอื่น (รองรับทั้ง Date object, ISO string, และข้อความ DD/MM/YYYY)
-    // เดิมฟังก์ชันนี้ใช้ new Date(dateStr) ตรงๆ ซึ่ง parse ข้อความ DD/MM/YYYY ไม่ได้ ทำให้บางแถวโชว์วันที่ดิบไม่ถูกจัดรูปแบบ
-    const date = parseDueDate(dateStr);
-    return date ? date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', calendar: 'gregory' }) : dateStr;
+    const date = new Date(dateStr);
+    return isNaN(date) ? dateStr : date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function initFilterOptions(data) {
@@ -1604,7 +1584,6 @@ function initFilterOptions(data) {
     const statuses = new Set();
 
     const aircodes = new Set();
-    const costcenters = new Set();
 
     data.forEach(item => {
         const d = new Date(getAnyValue(item, ['กำหนดชำระ', 'dueDate']));
@@ -1615,8 +1594,6 @@ function initFilterOptions(data) {
         if (status && status !== "") statuses.add(status);
         const aircode = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']);
         if (aircode && aircode !== "") aircodes.add(aircode);
-        const costcenter = getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center']);
-        if (costcenter && costcenter !== "") costcenters.add(costcenter);
     });
 
     const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -1625,7 +1602,6 @@ function initFilterOptions(data) {
     initMultiSelect('filter-date', Array.from({length: 31}, (_, i) => String(i + 1)));
     initMultiSelect('filter-leasing', Array.from(leasings).sort());
     initMultiSelect('filter-aircode', Array.from(aircodes).sort());
-    initMultiSelect('filter-costcenter', Array.from(costcenters).sort());
     initMultiSelect('filter-status', Array.from(statuses).sort());
     initMultiSelect('trend-filter-year', Array.from(years).sort().map(y => String(y)));
     initMultiSelect('trend-filter-leasing', Array.from(leasings).sort());
@@ -1688,7 +1664,6 @@ function applyFilters() {
     const days = getMultiSelectSelected('filter-date');
     const leasings = getMultiSelectSelected('filter-leasing');
     const aircodes = getMultiSelectSelected('filter-aircode');
-    const costcenters = getMultiSelectSelected('filter-costcenter');
     const statuses = getMultiSelectSelected('filter-status');
 
     const filtered = allData.filter(item => {
@@ -1698,9 +1673,8 @@ function applyFilters() {
         const matchDay = !days.size || (!isNaN(d) && days.has(d.getDate().toString()));
         const matchLeasing = !leasings.size || leasings.has(String(getAnyValue(item, ['ชื่อลิสซิ่ง', 'leasing'])));
         const matchAircode = !aircodes.size || aircodes.has(String(getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code'])));
-        const matchCostCenter = !costcenters.size || costcenters.has(String(getAnyValue(item, ['Cost center', 'costCenter', 'CostCenter', 'cost center'])));
         const matchStatus = !statuses.size || statuses.has(String(getAnyValue(item, ['สถานะ', 'status'])));
-        return matchYear && matchMonth && matchDay && matchLeasing && matchAircode && matchCostCenter && matchStatus;
+        return matchYear && matchMonth && matchDay && matchLeasing && matchAircode && matchStatus;
     });
     updateKPIs(filtered);
 }
@@ -1936,7 +1910,7 @@ function openPDFModal() {
 
 function buildReportHTML(selectedDatesArr, dayData) {
     const dateStr = selectedDatesArr.length === 1
-        ? selectedDatesArr[0].toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' })
+        ? selectedDatesArr[0].toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
         : selectedDatesArr.map(d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })).join(', ');
     const printedAt = new Date().toLocaleString('th-TH');
 
@@ -2613,7 +2587,7 @@ function exportNearEndPDF() {
     var qualified = buildNearEndData(limit);
     var leasingEntries = Object.entries(qualified).sort(function(a,b){ return b[1].sum - a[1].sum; });
     if (leasingEntries.length === 0) { alert('ไม่พบสัญญาในช่วงที่เลือก'); return; }
-    var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric', calendar: 'gregory' });
+    var dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
     var fmtN = function(n) { return n.toLocaleString(undefined, {minimumFractionDigits:2}); };
     var totalContracts = leasingEntries.reduce(function(s,e){ return s + e[1].rows.length; }, 0);
     var grandTotal = leasingEntries.reduce(function(s,e){ return s + e[1].sum; }, 0);
@@ -2710,7 +2684,7 @@ function exportCheckReturnPDF() {
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { alert('กรุณาอนุญาต popup'); return; }
 
-    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric', calendar: 'gregory' })}`;
+    const title = `ค่าธรรมเนียมเช็คคืน — ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`;
 
     const clone = table.cloneNode(true);
     clone.querySelectorAll('th, td').forEach(el => {
