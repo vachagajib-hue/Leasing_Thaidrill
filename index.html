@@ -69,7 +69,9 @@
                     <div class="kpi-data">
                         <div class="kpi-label">ยอดค่างวดรวมทั้งหมด</div>
                         <div class="kpi-value" id="total-amount">0</div>
-                        <div class="kpi-note"><i class="fas fa-database"></i> อัปเดตจาก Google Sheets</div>
+                        <div class="kpi-note kpi-note-blue" id="total-count"><i class="fas fa-list"></i> 0 รายการ</div>
+                        <div class="kpi-note" style="margin-top:2px;"><i class="fas fa-database"></i> อัปเดตจาก Google Sheets</div>
+                        <button class="btn-kpi-detail" id="btnTotalDetail"><i class="fas fa-eye"></i> ดูรายละเอียด</button>
                     </div>
                 </div>
                 <div class="kpi-card kpi-green">
@@ -136,10 +138,6 @@
                     <div class="filter-group">
                         <label>Air Code</label>
                         <div class="multi-select" id="filter-aircode" data-placeholder="ทั้งหมด"></div>
-                    </div>
-                    <div class="filter-group">
-                        <label>Cost Center</label>
-                        <div class="multi-select" id="filter-costcenter" data-placeholder="ทั้งหมด"></div>
                     </div>
                     <div class="filter-group">
                         <label>สถานะ</label>
@@ -211,7 +209,6 @@
                             <div class="multi-select table-sel" id="table-filter-year" data-placeholder="ทุกปี"></div>
                             <div class="multi-select table-sel" id="table-filter-month" data-placeholder="ทุกเดือน"></div>
                             <div class="multi-select table-sel" id="table-filter-leasing" data-placeholder="ทุกลิสซิ่ง"></div>
-                            <div class="multi-select table-sel" id="table-filter-costcenter" data-placeholder="ทุก Cost Center"></div>
                             <div class="multi-select table-sel" id="table-filter-status" data-placeholder="ทุกสถานะ"></div>
                         </div>
                         <button class="btn-export-pdf" id="btnExportTablePdf">
