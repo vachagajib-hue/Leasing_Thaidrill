@@ -187,6 +187,7 @@ let overdueData = [];
 let pendingData = [];
 let currentMonthData = [];
 let paidData = [];
+let totalData = [];
 
 let _lastFilteredData = [];
 
@@ -742,6 +743,7 @@ function updateKPIs(data) {
     pendingData = [];
     currentMonthData = [];
     paidData = [];
+    totalData = data;
 
     const now = new Date();
     const curYear = now.getFullYear();
@@ -835,7 +837,7 @@ function showStatusModal(statusType) {
     const bodyEl = document.getElementById('statusModalBody');
     if (!modal || !titleEl || !bodyEl) return;
 
-    const dataMap = { overdue: overdueData, pending: pendingData, currentMonth: currentMonthData, paid: paidData, total: allData };
+    const dataMap = { overdue: overdueData, pending: pendingData, currentMonth: currentMonthData, paid: paidData, total: totalData };
     const data = dataMap[statusType] || [];
     const thaiMonth = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     const titleMap = {
