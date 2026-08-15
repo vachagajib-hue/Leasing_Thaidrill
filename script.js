@@ -2414,7 +2414,7 @@ function renderCheckReturnTable(data) {
             <td class="col-center">${checkNo}</td>
             <td class="col-center"><span class="bank-tag">${bank}</span></td>
             <td class="col-amount">${faceAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-            <td class="col-amount" style="color:#ef4444;font-weight:700;">${fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="col-amount" style="color:#ef4444;font-weight:700;">${fee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>`;
     });
 
@@ -2423,7 +2423,7 @@ function renderCheckReturnTable(data) {
             <tr class="total-row">
                 <td colspan="7" style="text-align:right;font-weight:700;">ยอดรวม (${filtered.length.toLocaleString()} รายการ)</td>
                 <td class="col-amount" style="font-weight:700;text-align:right;">${totalFaceAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                <td class="col-amount" style="font-weight:700;color:#ef4444;text-align:right;">${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td class="col-amount" style="font-weight:700;color:#ef4444;text-align:right;">${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
         </tfoot>` : '';
 
