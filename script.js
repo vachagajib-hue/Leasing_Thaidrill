@@ -694,6 +694,13 @@ function parseDueDate(val) {
     return null;
 }
 
+// แสดงวันที่แบบไทย (วัน เดือนย่อ) แต่ใช้ปี ค.ศ. (Gregorian) แทน พ.ศ.
+function formatThaiShortDateCE(d) {
+    if (!d || isNaN(d)) return '-';
+    const thMonthsShort = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    return `${d.getDate()} ${thMonthsShort[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 function cleanNumber(val) {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -891,7 +898,7 @@ function showStatusModal(statusType) {
         const val = getAnyValue(item, col.keys);
         if (col.isDate) {
             const d = parseDueDate(val);
-            const display = d ? d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : (val || '-');
+            const display = d ? formatThaiShortDateCE(d) : (val || '-');
             return `<td style="text-align:center;white-space:nowrap">${display}</td>`;
         }
         if (col.isAmount) {
@@ -984,7 +991,7 @@ function showStatusModal(statusType) {
             const contractAccordions = contracts.map(([cname, cdata], ci) => {
                 const itemRows = cdata.items.map((item, ii) => {
                     const d = parseDueDate(getAnyValue(item, ['กำหนดชำระ','dueDate']));
-                    const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-';
+                    const dateDisp = d ? formatThaiShortDateCE(d) : '-';
                     const air  = getAnyValue(item, ['Air Code','airCode','AirCode','air code']) || '-';
                     const inst = getAnyValue(item, ['งวดที่','installment','งวด']) || '-';
                     const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ','amount','ยอดเงิน','ยอดชำระ','ยอด']));
@@ -1141,8 +1148,9 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                     const itemRows = cdata.items.map((item, ii) => {
                         const rawDate = getAnyValue(item, ['กำหนดชำระ', 'dueDate']);
                         const d = parseDueDate(rawDate);
-                        const dateDisp = d ? d.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : (rawDate || '-');
+                        const dateDisp = d ? formatThaiShortDateCE(d) : (rawDate || '-');
                         const air = getAnyValue(item, ['Air Code', 'airCode', 'AirCode', 'air code']) || '-';
+                        const costCenter = getAnyValue(item, ['Cost Center', 'cost center', 'costCenter', 'CostCenter']) || '-';
                         const inst = getAnyValue(item, ['งวดที่', 'installment', 'งวด']) || '-';
                         const amt2 = cleanNumber(getAnyValue(item, ['ค่างวดประจำ', 'amount', 'ยอดเงิน', 'ยอดชำระ', 'ยอด']));
                         const st = getAnyValue(item, ['สถานะ', 'status']) || '-';
@@ -1151,13 +1159,14 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                             <td style="text-align:center;color:#9ca3af">${ii+1}</td>
                             <td style="text-align:center;white-space:nowrap">${dateDisp}</td>
                             <td style="text-align:center;color:#6b7280">${air}</td>
+                            <td style="text-align:center;color:#6b7280">${costCenter}</td>
                             <td style="text-align:center">${inst}</td>
                             <td style="text-align:right;font-weight:700;color:#1d4ed8">${amt2.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                             <td style="text-align:center;font-weight:700;font-size:10px;${sc}">${st}</td>
                         </tr>`;
                     }).join('');
                     const subtotal = `<tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
-                        <td colspan="4" style="text-align:right;font-size:10px;color:#6b7280;padding:4px 6px">รวมสัญญานี้</td>
+                        <td colspan="5" style="text-align:right;font-size:10px;color:#6b7280;padding:4px 6px">รวมสัญญานี้</td>
                         <td style="text-align:right;font-weight:700;color:#1d4ed8;padding:4px 6px">${cdata.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                         <td></td>
                     </tr>`;
@@ -1169,11 +1178,11 @@ function exportStatusPDF({ title, data, totalAmt, cols, groups, view, fmtMoney, 
                         </div>
                         <table>
                             <colgroup>
-                                <col style="width:5%"><col style="width:12%"><col style="width:12%">
+                                <col style="width:5%"><col style="width:12%"><col style="width:10%"><col style="width:12%">
                                 <col style="width:8%"><col style="width:14%"><col style="width:12%">
                             </colgroup>
                             <thead><tr>
-                                <th>#</th><th>กำหนดชำระ</th><th>Air Code</th>
+                                <th>#</th><th>กำหนดชำระ</th><th>Air Code</th><th>Cost Center</th>
                                 <th>งวดที่</th><th style="text-align:right">ค่างวดประจำ</th><th>สถานะ</th>
                             </tr></thead>
                             <tbody>${itemRows}${subtotal}</tbody>
@@ -1339,7 +1348,7 @@ function exportStatusExcel({ title, data, totalAmt, fmtMoney }) {
         if (!val) return '';
         const d = parseDueDate ? parseDueDate(val) : new Date(val);
         if (!d || isNaN(d)) return String(val);
-        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        return formatThaiShortDateCE(d);
     };
 
     const now = new Date();
@@ -1577,7 +1586,7 @@ function showDetailModal(item) {
 function formatDate(dateStr) {
     if (!dateStr || dateStr === '-') return '-';
     const date = new Date(dateStr);
-    return isNaN(date) ? dateStr : date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    return isNaN(date) ? dateStr : formatThaiShortDateCE(date);
 }
 
 function initFilterOptions(data) {
