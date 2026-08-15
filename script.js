@@ -694,11 +694,13 @@ function parseDueDate(val) {
     return null;
 }
 
-// แสดงวันที่แบบไทย (วัน เดือนย่อ) แต่ใช้ปี ค.ศ. (Gregorian) แทน พ.ศ.
+// แสดงวันที่แบบ dd/mm/yyyy โดยใช้ปี ค.ศ. (Gregorian)
 function formatThaiShortDateCE(d) {
     if (!d || isNaN(d)) return '-';
-    const thMonthsShort = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-    return `${d.getDate()} ${thMonthsShort[d.getMonth()]} ${d.getFullYear()}`;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
 }
 
 function cleanNumber(val) {
