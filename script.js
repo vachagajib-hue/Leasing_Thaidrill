@@ -2369,6 +2369,15 @@ function renderCheckReturnTable(data) {
         return matchY && matchM && matchL && matchB && matchS;
     });
 
+    // เรียงตามวันที่เช็คคืน จากน้อยไปหามาก (เก่าสุดก่อน)
+    filtered.sort((a, b) => {
+        const da = new Date(getAnyValue(a, DATE_KEYS));
+        const db = new Date(getAnyValue(b, DATE_KEYS));
+        const ta = isNaN(da) ? Infinity : da.getTime();
+        const tb = isNaN(db) ? Infinity : db.getTime();
+        return ta - tb;
+    });
+
     if (countBadge) countBadge.textContent = `${filtered.length.toLocaleString()} รายการ`;
 
     const subtitleEl = document.getElementById('checkReturnSubtitle');
